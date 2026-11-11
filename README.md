@@ -15,7 +15,8 @@ Built for the PayPal AI Hackathon 2026. Everything runs on the **PayPal sandbox*
 
 1. **Notice.** The family gives the person's name, known email addresses, the date of death, their wishes in their own words, and a document (a funeral notice, pasted or as an image). The agent reads the document and compares the name and date with the notice.
 2. **Plan.** The agent asks each merchant's desk what it holds for that person, checks the live state of each item on PayPal, reads the merchant's bereavement policy, and proposes one action per item with a reason. The family can change any row.
-3. **Done.** After approval the agent carries out the plan through the desks. Each row ends as confirmed with PayPal, waiting on the family (a take-over needs their PayPal approval), or blocked with the reason. The family gets a closing statement.
+3. **Done.** After approval the agent carries out the plan through the desks. Each row ends as confirmed with PayPal, waiting on the family, or blocked with the reason. The family gets a closing statement.
+4. **Hand-over.** A take-over creates a replacement subscription in the family member's name and pauses the old one. When they approve the new one at PayPal, the old one is cancelled and the row is done.
 
 Until the document matches the notice, only reversible steps are available: "Pause everything for now", and "Resume everything" to undo it.
 
@@ -46,6 +47,7 @@ family ── notice ──▶ agent (LLM tool loop) ──▶ merchant desk ─
 - **Guard** (`lib/guard.ts`): pure functions, unit tested. See the next section.
 - **PayPal** (`lib/paypal.ts`): the [PayPal Agent Toolkit](https://github.com/paypal/agent-toolkit) (`@paypal/agent-toolkit/openai`) for `show_subscription_details`, `cancel_subscription`, `create_subscription`, `create_refund`, `get_refund`, `get_order`, `get_invoice`, `cancel_invoice_auto_reminder`, `cancel_sent_invoice` and `generate_invoice_qr_code`, with the toolkit's own tool schemas passed to the model. Two calls the toolkit does not have, suspend and activate subscription, go to the REST API directly, as does seeding the demo estate.
 - **UI**: Next.js App Router. AG Grid for the plan and for each merchant's ledger. The agent's activity streams to the page over server-sent events.
+- **MCP** (`lib/mcp.ts`, `POST /api/mcp`): Handover is also an MCP server, so a family's own assistant can file the notice, show the plan, and approve it on their word. Same functions as the web page, same guard.
 
 The agent and the desks run in one process. The separation between them is at module level, not process level: the agent module is never handed credentials, but this is not an isolation boundary you should rely on in production.
 
@@ -89,8 +91,14 @@ Requirements: Node 22 or later, a PayPal developer account, an API key for any p
 
 Checks:
 
-- `npm test`: guard rules, refund arithmetic, customer matching, plan validation, desk behaviour.
-- `npm run e2e`: seeds an estate and runs intake, pause, resume, plan and execution end to end, then asserts the resulting PayPal states. With no credentials it runs against the fake backend and a scripted stand-in for the model.
+- `npm test`: guard rules, refund arithmetic, customer matching, plan validation, desk behaviour, the MCP endpoint.
+- `npm run e2e`: seeds an estate and runs intake, pause, resume, plan, execution and a take-over approval end to end, then asserts the resulting PayPal states. With no credentials it runs against the fake backend and a scripted stand-in for the model, and adds two more runs: a PayPal failure in mid-execution, and a model that misbehaves (refunds at the wrong desk, an unknown id, a refund the family did not approve, a duplicate refund, an early cancellation). Every such call is refused and the approved plan still completes.
+
+## Use it from another assistant (MCP)
+
+Add `https://<your-host>/api/mcp` to any MCP client as a Streamable HTTP server. Tools: `start_demo_case`, `file_notice`, `get_case`, `change_decision`, `approve_and_carry_out`, `pause_everything`, `resume_everything`, `check_take_over_approval`.
+
+With Claude Code, for example: `claude mcp add --transport http handover https://<your-host>/api/mcp`, then ask it to start a demo case and walk you through the plan.
 
 ## Tools and models used
 

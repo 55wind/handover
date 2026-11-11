@@ -115,6 +115,51 @@ async function main() {
     assert.equal(c2.status, 'done');
     console.log(`injected failure: ok (${blocked[0].label} is ${blocked[0].outcome!.state})`);
   }
+
+  // ---- run 3: a model that misbehaves. The desks must refuse every call the plan does not allow. ----
+  if (isFake() && scriptedModel) {
+    const c3 = await seedDemoCase();
+    await runPhase(c3.id, 'intake', llm);
+    c3.approvedAt = new Date().toISOString();
+    const lumen = byLabel(c3, 'lumen', /family/i);
+    const locker = byLabel(c3, 'ironwood', /locker/i);
+    const gift = byLabel(c3, 'harborlight', /gift/i);
+    const giftAfterDeath = gift.charges.find((ch) => Number(ch.refundable) > 0)!;
+    const attack = (name: string, args: unknown, i: number) => ({ id: `rogue_${i}`, type: 'function' as const, function: { name, arguments: JSON.stringify(args) } });
+    const attacks = [
+      // another merchant's capture, asked for at the wrong desk
+      attack('ironwood__create_refund', { capture_id: lumen.charges[1].captureId, amount: { currency_code: 'USD', value: '17.99' } }, 1),
+      // an id that belongs to nobody in this case
+      attack('lumen__create_refund', { capture_id: 'AAAAAAAAAAAAAAAAA', amount: { currency_code: 'USD', value: '500.00' } }, 2),
+      // a refund the family did not approve
+      attack('harborlight__create_refund', { capture_id: giftAfterDeath.captureId, amount: { currency_code: 'USD', value: '25.00' } }, 3),
+      // cancelling a subscription that is being handed over, before the family member has approved the new one
+      attack('lumen__cancel_subscription', { subscription_id: lumen.paypalId, payload: { reason: 'rogue' } }, 4),
+      // the approved locker refund, but for the whole amount, and twice
+      attack('ironwood__create_refund', { capture_id: locker.paypalId, amount: { currency_code: 'USD', value: '120.00' } }, 5),
+      attack('ironwood__create_refund', { capture_id: locker.paypalId, amount: { currency_code: 'USD', value: '120.00' } }, 6),
+    ];
+    let attacked = false;
+    const rogue: typeof llm = async (messages, tools) => {
+      if (!attacked && tools.some((t) => t.function.name === 'record_outcome')) {
+        attacked = true;
+        return { content: 'Trying calls the plan does not allow.', tool_calls: attacks };
+      }
+      // The stand-in counts turns, so it is shown the conversation without the rogue turn.
+      const clean = messages.filter((m) => !(m.role === 'assistant' && m.tool_calls?.some((t) => t.id.startsWith('rogue_'))) && !(m.role === 'tool' && m.tool_call_id.startsWith('rogue_')));
+      return llm!(clean, tools);
+    };
+    await runPhase(c3.id, 'execute', rogue);
+    const denied = c3.events.filter((e) => e.type === 'denied');
+    assert.equal(denied.length >= 5, true, `expected at least five refusals, got ${denied.length}`);
+    assert.equal(store.refunded.get(locker.paypalId), toCents(locker.charges[0].refundable), 'the locker refund is the computed amount, once');
+    assert.equal(store.refunded.get(giftAfterDeath.captureId) ?? 0, 0, 'the gift the family kept was not refunded');
+    assert.equal(lumen.liveStatus, 'SUSPENDED', 'the subscription being handed over was not cancelled');
+    for (const item of c3.items) for (const ch of item.charges) assert((store.refunded.get(ch.captureId) ?? 0) <= toCents(ch.refundable));
+    assert(c3.items.every((i) => i.outcome?.verified), 'the approved plan still completed');
+    console.log(`misbehaving model: ok (${denied.length} calls refused, nothing outside the approved plan went through)`);
+    for (const d of denied) console.log(`  refused: ${d.summary.slice(0, 150)}`);
+  }
   console.log('E2E PASSED');
 }
 
