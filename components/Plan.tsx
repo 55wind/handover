@@ -397,7 +397,8 @@ export function Done({ c, locked, error, onRetry, onCheck }: { c: Case; locked: 
   const verified = c.items.filter((i) => i.outcome?.verified);
   const count = (a: Action) => verified.filter((i) => i.decided?.action === a).length;
   const refunded = verified.reduce((n, i) => n + (i.decided?.refunds ?? []).reduce((m, r) => m + cents(r.amount), 0), 0);
-  const waiting = verified.some((i) => i.decided?.action === 'take_over' && i.outcome?.state === 'waiting');
+  const pending = verified.filter((i) => i.decided?.action === 'take_over' && i.outcome?.state === 'waiting').length;
+  const waiting = pending > 0;
   return (
     <section className="stack" aria-labelledby="done-h">
       <div className="stack--tight">
@@ -448,9 +449,15 @@ export function Done({ c, locked, error, onRetry, onCheck }: { c: Case; locked: 
             <dd>{count('close')}</dd>
           </div>
           <div>
-            <dt>{waiting ? 'Taken over, waiting for approval' : 'Taken over'}</dt>
-            <dd>{count('take_over')}</dd>
+            <dt>Taken over</dt>
+            <dd>{count('take_over') - pending}</dd>
           </div>
+          {pending > 0 && (
+            <div>
+              <dt>Waiting for approval</dt>
+              <dd>{pending}</dd>
+            </div>
+          )}
           <div>
             <dt>Waived</dt>
             <dd>{count('waive')}</dd>
