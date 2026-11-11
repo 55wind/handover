@@ -82,7 +82,7 @@ One-line pitch: **One notice settles every payment a person left behind.**
 Flow on `/case/[id]`, one page, three steps:
 
 1. **Notice.** Name, known emails, date of death, the representative's name and relation, free-text wishes, and a document (image upload or pasted text). The agent reads the document and extracts name and date. If they match what was entered, the case becomes `verified`; otherwise it stays `filed` and the page says what does not match.
-2. **Plan.** The agent's activity streams live while it queries each merchant. Result: a grid of items with proposed action, refund amount, reason, and any question for the family. The family edits rows and presses Approve. While the case is only `filed`, the only button is "Pause everything for now" (reversible).
+2. **Plan.** The agent's activity streams live while it queries each merchant. Result: a grid of items with proposed action, refund amount, reason, and any question for the family. The family edits rows and presses Approve. While the case is only `filed`, the only button is "Pause everything for now". After a pause, "Resume everything" undoes it.
 3. **Done.** Execution streams live. Each row ends as done (with PayPal ids, verified by read-back), waiting (take-over needs the family member's PayPal approval; link shown), or blocked (with the reason and next step). Then the closing statement.
 
 `/merchant/[slug]` shows that merchant's policy and a grid of every action taken on its account.
@@ -109,22 +109,25 @@ Merchant policies (fixed in code, different on purpose):
 - Ironwood Gym: pro-rata refund of prepaid service; waives invoices for services not delivered; no take-over.
 - Harbor Light Food Bank: gifts made before the date of death are not refunded; later gifts refundable on request; take-over allowed.
 
-**Refund rule (one rule for all charges):** each charge has a service period from the merchant's records. Refundable amount = amount x share of the period that falls after the date of death, then limited by the merchant's policy, and never more than what PayPal reports as still refundable. Code computes it; the model never does arithmetic on money.
+**Refund rule (one rule for all charges):** each charge has a service period from the merchant's records. A period that starts after the date of death is refundable in full. A period that contains the date of death is refundable pro-rata for the days after it, only where the merchant's policy allows. Anything Handover already refunded on that capture is subtracted, and PayPal itself rejects anything beyond what is refundable. Code computes the amount; the model never does arithmetic on money.
 
-Note for the README: sandbox objects are created minutes before each demo, so PayPal timestamps are recent; service periods come from the merchant's records.
+Notes for the README:
+
+- Sandbox objects are created minutes before each demo, so PayPal timestamps are recent; service periods come from the merchant's records.
+- Sandbox subscription billing is asynchronous, so a new subscription's first payment may not exist yet when the demo runs. Each period charge in the demo is therefore a separate sandbox card capture taken by the same merchant from the same payer and linked to the account in the merchant's records. They are real captures and real refunds.
 
 ## 6. Safety rules (enforced in code, in the merchant desk)
 
 Every write tool call passes `guard()` before it reaches PayPal. A denial returns a structured reason to the agent and appears in the activity stream.
 
-1. **Ownership.** The target id must be in this merchant's records for the customer matched to this case.
-2. **Tier.** `filed`: only suspend is allowed. `verified` and plan approved: cancel, refund, cancel invoice, create replacement subscription.
+1. **Ownership.** The target id must be in this merchant's records for a customer whose email exactly equals one the family gave. Code decides this, not the model. Near matches (same family name, different email) are shown to the family as a note and cannot be acted on.
+2. **Tier.** `filed`: only suspend and its undo (activate) are allowed. `verified` and plan approved: cancel, refund, cancel invoice, create replacement subscription.
 3. **Approval.** An irreversible call must match an item and action in the approved plan.
 4. **Refund bounds.** Amount must not exceed the code-computed refundable amount for that capture.
 5. **Once.** Each item-action runs once; `PayPal-Request-Id` is derived from case, item and action.
 6. **Read-back.** After the agent reports an outcome, code re-reads the object from PayPal and sets `verified`. The UI shows "done" only when verified.
 
-PayPal refunds return to the original payment method, so a false notice cannot extract money; the worst case is a cancelled subscription.
+What this does and does not protect against, to be stated the same way in the README: a refund can only return to the payment method that paid, so a notice cannot redirect money to whoever filed it. A false notice could still cause refunds to the original payer, a waived invoice and cancelled subscriptions at the merchant's cost. That is why irreversible actions need the `verified` tier, and why a real deployment needs real proof-of-death checking, which this build does not have.
 
 ## 7. Architecture
 
@@ -154,9 +157,9 @@ scripts/e2e.ts      npm run e2e
 
 ### Backends
 
-A backend is one function: `exec(toolName, args) -> JSON`. Tool names and schemas are the toolkit's own for everything it covers, plus four custom tools.
+A backend is one function: `exec(toolName, args) -> JSON`. Tool names and schemas are the toolkit's own for everything it covers, plus two custom tools.
 
-- **Real:** toolkit `handleToolCall` for toolkit tools; `fetch` for `list_subscriptions`, `suspend_subscription`, `activate_subscription`, `list_subscription_payments`, and for seeding.
+- **Real:** toolkit `handleToolCall` for toolkit tools; `fetch` for the two custom tools `suspend_subscription` and `activate_subscription`, and for seeding.
 - **Fake:** an in-memory state machine with the same tool names and the response fields the code reads (`status`, `id`, amounts, links). Enabled only by `PAYPAL_FAKE=1`, shows a permanent red "FAKE PAYPAL, development only" banner, and must never be set on the hosted demo.
 - With neither credentials nor `PAYPAL_FAKE=1`, the app says PayPal is not configured. It does not fall back silently.
 
@@ -168,17 +171,18 @@ A backend is one function: `exec(toolName, args) -> JSON`. Tool names and schema
 - Write: `suspend_subscription`, `activate_subscription`, `cancel_subscription`, `create_refund`, `cancel_invoice_auto_reminder`, `cancel_sent_invoice`, `create_subscription`, `generate_invoice_qr_code`.
 - Every call is appended to the merchant's ledger.
 
-The agent sees each desk's tools namespaced as `lumen__cancel_subscription`. The agent process holds no PayPal credentials.
+The agent sees each desk's tools namespaced as `lumen__cancel_subscription`. The agent module is never given PayPal credentials; only the desks hold them. This is module-level separation inside one process, not process isolation, and the README must say so.
 
 ### Agent
 
-OpenAI-compatible chat completions with tools (`openai` SDK, same version the toolkit pins). `LLM_MODEL` (default `gpt-5.5`) and `OPENAI_BASE_URL` are configurable so another provider can be swapped in.
+OpenAI-compatible chat completions with tools (`openai` SDK, same version the toolkit pins). `LLM_MODEL` and `OPENAI_BASE_URL` are configurable, so any provider with an OpenAI-compatible endpoint works. The model client is injectable so the end-to-end test can run with a scripted stand-in when no key is available.
 
 | Phase | Tools | Ends with |
 |---|---|---|
 | intake | none (vision on the document) | extracted fields and mismatches |
-| plan | desk read tools, `compute_refund`, `submit_plan` | a validated plan |
+| plan | desk read tools (records come back with the code-computed refundable amount per charge), `submit_plan` | a validated plan |
 | pause | desk read tools, `suspend_subscription`, `record_outcome` | all active subscriptions suspended |
+| resume | desk read tools, `activate_subscription`, `record_outcome` | everything this case paused is active again |
 | execute | desk read and write tools, `record_outcome`, `finish` | outcomes and closing statement |
 
 - `submit_plan` is validated in code (ids exist, action allowed for kind and policy, refunds recomputed). Errors go back to the agent, up to three rounds; rows still invalid are dropped with a visible note.
@@ -214,7 +218,7 @@ Take-over: create a new subscription on the same plan for the representative (re
 ```
 OPENAI_API_KEY=            required
 OPENAI_BASE_URL=           optional
-LLM_MODEL=gpt-5.5
+LLM_MODEL=                 model id for that provider
 PAYPAL_1_CLIENT_ID=        sandbox REST app for merchant slot 1 (required for real mode)
 PAYPAL_1_CLIENT_SECRET=
 PAYPAL_2_CLIENT_ID=        optional; without it, merchants share slot 1 and the UI says so
@@ -222,7 +226,7 @@ PAYPAL_2_CLIENT_SECRET=
 PAYPAL_3_CLIENT_ID=
 PAYPAL_3_CLIENT_SECRET=
 PAYPAL_FAKE=               1 for development and tests only
-DEMO_DAILY_LIMIT=150       cap on demo runs per day, protects the LLM bill
+DEMO_DAILY_LIMIT=40        cap on demo runs per day, protects the LLM bill
 ```
 
 `.env.local` is gitignored; `.env.example` is committed. `render.yaml` declares the service with secrets unset.
@@ -234,12 +238,10 @@ Step one once credentials exist is `npm run probe`. It tries each primitive per 
 | Primitive | Used for | If it fails |
 |---|---|---|
 | Invoice create and send | open bill | none expected |
-| Card-funded order capture | charges to refund | ask the owner to enable Advanced Card Payments on the sandbox app; last resort is a small pool of buyer-approved orders |
-| Card-funded subscription | recurring items | next row |
-| Recurring invoice series | recurring items, second choice | next row |
-| Buyer-approved subscription pool | recurring items, last choice | the owner approves a batch once; each demo run uses three |
+| Card-funded order capture | every refundable charge | ask the owner to enable Advanced Credit and Debit Card Payments on the sandbox app; last resort is a pool of buyer-approved orders |
+| Card-funded subscription | the three recurring items | a pool of buyer-approved subscriptions, created once by the owner (or a script driving the sandbox buyer login); each demo run uses three, and when the pool is empty the demo says so instead of faking |
 
-Seeding uses the first working option for each item and records which one, so the item's kind and label stay truthful. The agent and guard work from whatever exists.
+Only the card-funded path is built before credentials exist. The pool script is written only if the probe shows it is needed. Recurring invoice series are not used: they produce unpaid invoices, so there is nothing to refund or suspend.
 
 Until credentials arrive, development proceeds against the fake backend. Nothing is called finished until `npm run e2e` passes against the real sandbox.
 
@@ -254,7 +256,8 @@ Until credentials arrive, development proceeds against the fake backend. Nothing
 - README: what it is, how it differs from pre-arranged legacy plans, architecture, exactly which PayPal calls are real, limits, how to run with your own sandbox keys, tools and models used.
 - MIT license. Public GitHub repo.
 - `docs/submission.md`: Devpost text ready to paste.
-- Demo video under three minutes: screen recording of the real sandbox run with voiceover. Any AI voice or image tool used is disclosed.
+- Demo video under three minutes, produced by the builder: a screen recording of a real sandbox run with on-screen captions, and a voiceover only if a text-to-speech key is available. Any AI voice or image tool used is disclosed. The owner uploads it.
+- The README publishes a sandbox-only buyer login so a judge can approve a take-over as the family member.
 
 ## 12. Stretch, only after the core passes e2e on the real sandbox
 
@@ -262,13 +265,13 @@ Until credentials arrive, development proceeds against the fake backend. Nothing
 2. An MCP endpoint per merchant desk so any MCP-capable agent can file and follow a case.
 3. Revoking a stored payment token held by a shopping agent.
 4. A drafted notice letter for merchants that are not connected.
-5. "They can't manage things right now": a pause-only case that can be resumed.
+5. A case type for someone who is alive but cannot manage things for now: pause and resume only.
 
 ## 13. Choices made by the builder (Claude), not by the owner
 
 - Name "Handover"; fictional merchants and people.
 - Next.js, in-memory state, no database.
-- OpenAI key found on the development machine is used for the LLM; provider is swappable.
+- The OpenAI key found on the development machine has no credit left (checked 2026-11-11), so there is no working LLM key yet. The provider is swappable; the owner must supply a funded key.
 - Toolkit `/openai` export with a manual tool loop instead of an agent framework.
 - MCP is a stretch item, not the core path.
 - English UI and docs.
@@ -276,5 +279,15 @@ Until credentials arrive, development proceeds against the fake backend. Nothing
 ## 14. Needed from the owner
 
 1. PayPal developer account; **US** sandbox business account(s) and one REST app per merchant slot (one is enough to start); client id and secret into `.env.local`.
-2. A Render account (or permission to deploy another way) and the same secrets there.
-3. Upload the video to YouTube, confirm the public repo, press Submit on Devpost.
+2. An LLM API key with credit (top up the existing OpenAI account, or an Anthropic key) into `.env.local`.
+3. A sandbox **personal** (buyer) account, US region; its email and password will be published in the README for judges.
+4. A Render account (or permission to deploy another way) and the same secrets there. The free plan sleeps when idle; cases live in memory and are lost on restart, which the UI handles by offering a new demo case.
+5. Upload the video to YouTube, confirm the public repo, press Submit on Devpost.
+
+## 15. Schedule and cutoffs (KST)
+
+- Nov 12 12:00: PayPal credentials and a funded LLM key are in `.env.local`. Later than this puts the real-sandbox run at risk.
+- Nov 12 18:00: `npm run e2e` passes on the real sandbox.
+- Nov 12 20:00: deployed. 23:00: video file ready.
+- Nov 13 02:00: submitted, three hours before the deadline.
+- If real-sandbox e2e cannot pass, there is no honest submission: a fake-backed demo will not be submitted as working.
