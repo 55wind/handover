@@ -14,7 +14,8 @@ export interface Rules {
   referenceCountry: CountryCode; // the market the list price was set for
   dial: number; // 0..100. 0 = the same dollars everywhere, 100 = the same hours everywhere
   floorPercent: number; // never below this share of the list price
-  help: { maxPercent: number; perMonth: number }; // how far the clerk may lower a price from the pool, and how often
+  // How far the clerk may lower a price from the pool: on the buyer's word, with a document that supports it, and how often.
+  help: { maxPercent: number; maxPercentWithProof: number; perMonth: number };
 }
 
 /** One product's price for one country, worked out by code from World Bank data and the seller's rules. */
@@ -62,6 +63,8 @@ export interface Purchase {
   buyer: { language: string; viaAgent: boolean };
   gift: string; // "cover an hour for someone"; "0.00" when none
   help?: { amount: string; reason: string }; // granted by the clerk, paid from the pool
+  /** What the clerk read in a document the buyer showed. The image itself is not kept. */
+  evidence?: { kind: string; supports: boolean; note: string };
   amount: string; // what PayPal is asked to authorise: fair price, minus help, plus gift
   status: PurchaseStatus;
   running: boolean; // an agent is working on it right now

@@ -1,8 +1,8 @@
 import OpenAI from 'openai';
 import { backend } from './paypal';
-import { amountDue, captureDecision, fromCents, helpLimitCents, priceFor, toCents } from './pricing';
+import { captureDecision, fromCents, priceFor, toCents } from './pricing';
 import { RULES, SELLER, isScripted, productById } from './seller';
-import { grantsThisMonth, makeQuote, poolAvailableCents } from './shop';
+import { makeQuote } from './shop';
 import { store } from './store';
 import type { OrderView, Purchase, ToolResult } from './types';
 
@@ -22,14 +22,15 @@ export interface LlmReply {
   tool_calls?: LlmCall[];
 }
 export type LlmMessage =
-  | { role: 'system' | 'user'; content: string }
+  | { role: 'system'; content: string }
+  | { role: 'user'; content: string | unknown[] } // an array when a picture goes with the text
   | ({ role: 'assistant' } & LlmReply)
   | { role: 'tool'; tool_call_id: string; content: string };
 export type Llm = (messages: LlmMessage[], tools: LlmTool[]) => Promise<LlmReply>;
 
 let client: OpenAI | undefined;
 let standIn: Llm | undefined;
-const defaultLlm: Llm = async (messages, tools) => {
+export const defaultLlm: Llm = async (messages, tools) => {
   if (isScripted()) {
     standIn ??= (await import('./llm-scripted')).scripted();
     return standIn(messages, tools);
@@ -47,23 +48,35 @@ const defaultLlm: Llm = async (messages, tools) => {
   return { content: m.content, tool_calls: m.tool_calls as LlmCall[] | undefined };
 };
 
-const fn = (name: string, description: string, properties: Record<string, unknown> = {}, required: string[] = []): LlmTool => ({
+export const fn = (name: string, description: string, properties: Record<string, unknown> = {}, required: string[] = []): LlmTool => ({
   type: 'function',
   function: { name, description, parameters: { type: 'object', properties, required } },
 });
 
-type Handlers = Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>;
-const ok = (data: unknown): ToolResult => ({ ok: true, data });
-const refuse = (p: Purchase, error: string): ToolResult => {
+export type Handlers = Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>;
+export const ok = (data: unknown): ToolResult => ({ ok: true, data });
+export const refuse = (p: Purchase, error: string): ToolResult => {
   store.emit(p.id, { actor: 'rules', type: 'refused', summary: `Refused: ${error}` });
   return { ok: false, refused: true, error };
 };
 
 /** Runs the model with tools until `done()` or it stops calling tools. Returns the last text it wrote. */
-async function loop(p: Purchase, actor: 'clerk' | 'agent', system: string, user: unknown, tools: LlmTool[], handlers: Handlers, llm: Llm, done: () => boolean, maxTurns: number): Promise<string> {
+export async function loop(
+  p: Purchase,
+  actor: 'clerk' | 'agent',
+  system: string,
+  user: unknown,
+  tools: LlmTool[],
+  handlers: Handlers,
+  llm: Llm,
+  done: () => boolean,
+  maxTurns: number,
+  image?: string, // a data URL the model should look at together with `user`
+): Promise<string> {
+  const text = JSON.stringify(user);
   const messages: LlmMessage[] = [
     { role: 'system', content: system },
-    { role: 'user', content: JSON.stringify(user) },
+    { role: 'user', content: image ? [{ type: 'text', text }, { type: 'image_url', image_url: { url: image } }] : text },
   ];
   let last = '';
   for (let turn = 0; turn < maxTurns && !done(); turn++) {
@@ -100,83 +113,7 @@ async function loop(p: Purchase, actor: 'clerk' | 'agent', system: string, user:
   return last;
 }
 
-const STYLE = `Write to the buyer in the language they use (their language code is given; if they write in another language, answer in that one). Short, plain sentences. No sales talk, no flattery, no emoji.`;
-
-// ---- the clerk: talks to a buyer before they pay ----
-
-const CLERK = `You are the clerk at ${SELLER.shop}, a small seller of digital goods in ${SELLER.place}. The shop prices in hours of average income instead of dollars: a buyer is quoted the amount that costs them a comparable share of local income, inside the seller's limits. Figures come from the World Bank (income per person, divided by 2,000 working hours); they are averages, not wages.
-
-How it works, which you may explain:
-- The price depends on the country the buyer's PayPal wallet is registered in. PayPal reports that country when the buyer approves the payment. If it matches the quote the payment is taken; if not, nothing is taken and the buyer is shown the price for their wallet's country.
-- You cannot change which country a price is for, and you cannot change a price yourself.
-- Some buyers' circumstances do not match their wallet's country: a student abroad, someone supporting family elsewhere, someone who has lost their income. For them you may give help from a pool that other buyers paid into. Use help_limit to see how much is possible, then grant_help with an amount and a one-sentence reason. Give help only when the buyer has told you such a circumstance. You do not need proof; the limits are small on purpose. If the pool is empty, say so plainly.
-- Never promise an amount before a tool has confirmed it.
-
-${STYLE} Answer in at most four sentences.`;
-
-/** One turn of conversation. The reply is appended to the purchase's messages. */
-export async function runClerk(purchaseId: string, text: string, llm: Llm = defaultLlm): Promise<string | null> {
-  const p = store.purchases.get(purchaseId);
-  if (!p) return 'This purchase is no longer available.';
-  if (p.status !== 'open') return 'The payment has already started.';
-  if (p.running) return 'The clerk is still answering.';
-  const product = productById(p.productId)!;
-  p.running = true;
-  p.messages.push({ from: 'buyer', text, ts: new Date().toISOString() });
-  const limit = () => helpLimitCents(product, RULES, p.quote.price.fair, poolAvailableCents(p), grantsThisMonth());
-  const handlers: Handlers = {
-    price_for_country: async (a) => {
-      const price = priceFor(product, RULES, String(a.country ?? '').toUpperCase());
-      return price ? ok(price) : { ok: false, refused: false, error: 'There is no income figure for that country.' };
-    },
-    help_limit: async () => {
-      const l = limit();
-      return ok({ most_you_can_give: fromCents(l.maxCents), why: l.why, already_given_to_this_buyer: p.help?.amount ?? '0.00' });
-    },
-    grant_help: async (a) => {
-      const cents = toCents(String(a.amount ?? ''));
-      const l = limit();
-      if (!(cents > 0)) return refuse(p, 'Help needs an amount above 0.00.');
-      if (cents > l.maxCents) return refuse(p, `At most $${fromCents(l.maxCents)} can be given. ${l.why}`);
-      p.help = { amount: fromCents(cents), reason: String(a.reason ?? '').slice(0, 300) };
-      p.amount = amountDue(p.quote.price.fair, p.help.amount, p.gift);
-      store.emit(p.id, { actor: 'clerk', type: 'tool', summary: `The clerk took $${p.help.amount} off from the pool. ${p.help.reason}` });
-      return ok({ help: p.help.amount, buyer_now_pays: p.amount });
-    },
-  };
-  try {
-    const reply = await loop(
-      p,
-      'clerk',
-      CLERK,
-      {
-        product: { title: product.title, list_price: product.listPrice },
-        quote: p.quote.price,
-        gift_added_by_buyer: p.gift,
-        help_already_given: p.help ?? null,
-        buyer_language: p.buyer.language,
-        conversation: p.messages,
-      },
-      [
-        fn('price_for_country', 'Look up the price of this product for another country, for explaining or comparing.', { country: { type: 'string', description: 'Two-letter country code, e.g. VN' } }, ['country']),
-        fn('help_limit', 'See how much help could be given to this buyer right now, and why that is the limit.'),
-        fn('grant_help', 'Take an amount off this buyer\'s price, paid from the pool. Only after the buyer has told you why their circumstances differ from their wallet\'s country.', { amount: { type: 'string', description: 'USD, e.g. "4.00"' }, reason: { type: 'string', description: 'One sentence, in English, for the seller\'s ledger' } }, ['amount', 'reason']),
-      ],
-      handlers,
-      llm,
-      () => false,
-      6,
-    );
-    p.messages.push({ from: 'clerk', text: reply || 'I could not answer that just now. The price shown is still valid.', ts: new Date().toISOString() });
-    return null;
-  } catch (e) {
-    p.messages.push({ from: 'clerk', text: 'The clerk is not available right now. The price shown is still valid and you can pay without talking to the clerk.', ts: new Date().toISOString() });
-    store.emit(p.id, { actor: 'system', type: 'error', summary: `The clerk stopped: ${(e as Error).message}` });
-    return null;
-  } finally {
-    p.running = false;
-  }
-}
+export const STYLE = `Write to the buyer in the language they use (their language code is given; if they write in another language, answer in that one). Short, plain sentences. No sales talk, no flattery, no emoji.`;
 
 // ---- settlement: after the buyer approved at PayPal ----
 

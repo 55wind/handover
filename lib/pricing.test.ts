@@ -16,7 +16,7 @@ import {
 import type { OrderView, Product, Purchase, Rules } from './types';
 
 const course: Product = { id: 'lettering', title: 'Hand lettering basics', blurb: '', listPrice: '44.00' };
-const rules: Rules = { referenceCountry: 'US', dial: 50, floorPercent: 15, help: { maxPercent: 20, perMonth: 30 } };
+const rules: Rules = { referenceCountry: 'US', dial: 50, floorPercent: 15, help: { maxPercent: 20, maxPercentWithProof: 50, perMonth: 30 } };
 const table: Record<string, { name: string; gniPerCapita: number; year: number }> = data.countries;
 const codes = Object.keys(table);
 
@@ -201,7 +201,7 @@ test('helpLimitCents: the monthly number of grants is used up', () => {
 test('helpLimitCents: the seller, the pool or the last dollar decides', () => {
   assert.deepEqual(helpLimitCents(course, rules, '44.00', 10000, 0), {
     maxCents: 880,
-    why: 'The seller allows at most 20% of the list price, which is $8.80.',
+    why: 'The seller allows at most 20% of the list price on what a buyer says alone, which is $8.80.',
   });
   assert.deepEqual(helpLimitCents(course, rules, '10.41', 320, 0), {
     maxCents: 320,
@@ -218,7 +218,15 @@ test('helpLimitCents: an empty pool, and never negative', () => {
   assert.match(empty.why, /pool is empty/);
   assert.equal(helpLimitCents(course, rules, '10.41', -500, 0).maxCents, 0);
   assert.equal(helpLimitCents(course, rules, '0.50', 10000, 0).maxCents, 0);
-  assert.equal(helpLimitCents(course, { ...rules, help: { maxPercent: -10, perMonth: 30 } }, '10.41', 10000, 0).maxCents, 0);
+  assert.equal(helpLimitCents(course, { ...rules, help: { maxPercent: -10, maxPercentWithProof: 50, perMonth: 30 } }, '10.41', 10000, 0).maxCents, 0);
+});
+
+test('helpLimitCents: a supporting document raises the cap, and the pool still limits it', () => {
+  assert.equal(helpLimitCents(course, rules, '36.23', 100000, 0).maxCents, 880); // 20% of $44.00 on a buyer's word
+  assert.equal(helpLimitCents(course, rules, '36.23', 100000, 0, true).maxCents, 2200); // 50% with a document
+  assert.equal(helpLimitCents(course, rules, '36.23', 500, 0, true).maxCents, 500); // never more than the pool holds
+  assert.equal(helpLimitCents(course, rules, '10.41', 100000, 0, true).maxCents, 941); // the buyer still pays a dollar
+  assert.match(helpLimitCents(course, rules, '36.23', 100000, 0, true).why, /supporting document/);
 });
 
 test('captureDecision: captures when PayPal confirms the country, the wallet is new and the amount matches', () => {

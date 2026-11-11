@@ -87,8 +87,11 @@ export function helpLimitCents(
   fair: string,
   poolAvailableCents: number,
   grantsThisMonth: number,
+  withProof = false,
 ): { maxCents: number; why: string } {
-  const { maxPercent, perMonth } = rules.help;
+  const { perMonth } = rules.help;
+  // A document that supports what the buyer said raises the seller's cap. The pool and the one-dollar minimum still apply.
+  const maxPercent = withProof ? rules.help.maxPercentWithProof : rules.help.maxPercent;
   if (grantsThisMonth >= perMonth)
     return { maxCents: 0, why: `The seller allows help ${perMonth} times a month, and this month's limit has been reached.` };
   const cap = Math.round((toCents(product.listPrice) * maxPercent) / 100);
@@ -97,7 +100,7 @@ export function helpLimitCents(
     poolAvailableCents <= 0
       ? 'The pool is empty, so no help can be given right now.'
       : maxCents === cap
-        ? `The seller allows at most ${maxPercent}% of the list price, which is $${fromCents(cap)}.`
+        ? `The seller allows at most ${maxPercent}% of the list price ${withProof ? 'with a supporting document' : 'on what a buyer says alone'}, which is $${fromCents(cap)}.`
         : maxCents === poolAvailableCents
           ? `The pool holds $${fromCents(poolAvailableCents)}, so that is the most that can be given.`
           : `The buyer still pays at least $1.00, so the most that can be given is $${fromCents(maxCents)}.`;

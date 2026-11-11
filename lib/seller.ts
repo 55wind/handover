@@ -12,7 +12,7 @@ export const RULES: Rules = {
   referenceCountry: 'US',
   dial: 50,
   floorPercent: 15,
-  help: { maxPercent: 20, perMonth: 30 },
+  help: { maxPercent: 20, maxPercentWithProof: 50, perMonth: 30 },
 };
 
 export const productById = (id: string) => PRODUCTS.find((p) => p.id === id);

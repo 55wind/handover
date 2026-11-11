@@ -12,7 +12,8 @@ import type { Llm } from '../lib/agent';
 import type { Purchase } from '../lib/types';
 
 async function main() {
-  const { runClerk, runSettlement } = await import('../lib/agent');
+  const { runSettlement } = await import('../lib/agent');
+  const { runClerk } = await import('../lib/clerk');
   const { makeQuote, openPurchase, startCheckout, refundSale, sales } = await import('../lib/shop');
   const { store } = await import('../lib/store');
   const fake = await import('../lib/paypal-fake');
@@ -24,12 +25,14 @@ async function main() {
   const wallet = (country: string, n = 0) => fake.WALLETS.filter((w) => w.country === country)[n]?.id ?? assert.fail(`no demo wallet in ${country}`);
 
   /** Quote, open, start the payment, approve it as a wallet, then let the agent settle it. */
-  async function buy(o: { product?: string; claim: string; walletId: string; gift?: string; say?: string; model?: Llm }): Promise<Purchase> {
+  async function buy(o: { product?: string; claim: string; walletId: string; gift?: string; say?: string; document?: string; model?: Llm }): Promise<Purchase> {
     const quote = makeQuote(o.product ?? 'lettering', o.claim);
     assert(typeof quote !== 'string', String(quote));
     const p = openPurchase({ quoteId: quote.id, gift: o.gift });
     assert(typeof p !== 'string', String(p));
-    if (o.say) assert.equal(await runClerk(p.id, o.say, llm), null);
+    assert.equal(await runClerk(p.id, { greet: true }, llm), null);
+    assert.equal(p.messages.length, 1, 'the clerk opens the conversation');
+    if (o.say) assert.equal(await runClerk(p.id, { text: o.say, documentDataUrl: o.document }, llm), null);
     const started = await startCheckout(p);
     assert(typeof started !== 'string', String(started));
     fake.approve(p.paypal.orderId!, o.walletId);
@@ -90,11 +93,31 @@ async function main() {
   const p6 = openPurchase({ quoteId: quote6.id });
   assert(typeof p6 !== 'string');
   if (Number(store.pool.balance) === 0) {
-    await runClerk(p6.id, 'I lost my job. Can you help?', llm);
+    await runClerk(p6.id, { text: 'I lost my job. Can you help?' }, llm);
     assert.equal(p6.help, undefined, 'no help from an empty pool');
     assert.equal(p6.amount, quote6.price.fair);
     console.log('  empty pool                         the clerk gave nothing');
   }
+
+  // 6b. The clerk does not bargain, and records a gift when asked.
+  await runClerk(p6.id, { text: 'Can you do it cheaper?' }, llm);
+  assert.equal(p6.help, undefined, 'asking for a lower price is not a reason');
+  await runClerk(p6.id, { text: 'I would like to cover an hour for someone.' }, llm);
+  if (scriptedModel) assert.equal(p6.gift, '5.00');
+  console.log(`  no bargaining, gift on request        gift $${p6.gift}, pays $${p6.amount}`);
+
+  // 6c. With money in the pool, a document that supports the buyer's word raises what the clerk may give.
+  store.pool.balance = '40.00';
+  const PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const onWord = await buy({ product: 'brushes', claim: 'GB', walletId: wallet('NG'), say: 'I am a refugee and cannot afford this.' });
+  const withDoc = await buy({ claim: 'FR', walletId: wallet('NP'), say: 'I am a student, here is my card.', document: PIXEL });
+  if (scriptedModel) {
+    assert.equal(onWord.help?.amount, '2.40', '20% of the $12.00 list price on a word');
+    assert.equal(withDoc.evidence?.supports, true);
+    assert.equal(withDoc.help?.amount, '22.00', '50% of the $44.00 list price with a document');
+  }
+  console.log(`  help on a word / with a document      $${onWord.help?.amount} / $${withDoc.help?.amount}`);
+  store.pool.balance = '0.00';
 
   // 7. A model that misbehaves: it tries to take a payment the rules do not allow, then walks away.
   const rogue: Llm = async (messages) => {
