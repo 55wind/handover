@@ -1,9 +1,10 @@
 import OpenAI from 'openai';
-import { ACTIONS_BY_KIND, type Action, type Case, type Item, type MerchantSlug, type Phase } from './types';
+import { backend } from './paypal';
+import { amountDue, captureDecision, fromCents, helpLimitCents, priceFor, toCents } from './pricing';
+import { RULES, SELLER, isScripted, productById } from './seller';
+import { grantsThisMonth, makeQuote, poolAvailableCents } from './shop';
 import { store } from './store';
-import { MERCHANTS, SLUGS, isScripted } from './merchants';
-import { deskFor, inventory, readLiveStatus, replacementApproved, verifyOutcome } from './desk';
-import { fromCents, toCents, validatePlan, type PlanRow } from './guard';
+import type { OrderView, Purchase, ToolResult } from './types';
 
 // ---- model client (OpenAI-compatible chat completions; injectable for tests) ----
 
@@ -21,7 +22,7 @@ export interface LlmReply {
   tool_calls?: LlmCall[];
 }
 export type LlmMessage =
-  | { role: 'system' | 'user'; content: unknown }
+  | { role: 'system' | 'user'; content: string }
   | ({ role: 'assistant' } & LlmReply)
   | { role: 'tool'; tool_call_id: string; content: string };
 export type Llm = (messages: LlmMessage[], tools: LlmTool[]) => Promise<LlmReply>;
@@ -46,513 +47,298 @@ const defaultLlm: Llm = async (messages, tools) => {
   return { content: m.content, tool_calls: m.tool_calls as LlmCall[] | undefined };
 };
 
-// ---- prompts ----
-
-const PRINCIPLES = `You are Handover, an executor agent acting for a family after a death. You act through merchant desks. Each desk enforces its merchant's rules in code and may refuse a call. When a call is refused, do not repeat it: adapt, or report the item as blocked.
-
-Rules:
-- Use only ids returned by the tools. Never invent an id or an amount. The desk sets every refund amount.
-- When something is uncertain, choose the reversible step.
-- Follow the family's wishes wherever the merchant's policy allows.
-- Before each batch of tool calls, write one short plain sentence saying what you are about to do.
-- No condolences, no filler, no sales language.
-- Write anything addressed to the family in the language of their wishes text.`;
-
-const PLAN_TASK = `Task: propose what to do with every item this person left at the merchants.
-1. For each merchant call find_customer_records and get_policy.
-2. Confirm the live status of each subscription and invoice with the read tools.
-3. Choose one action per item.
-   - subscription: close, take_over or pause. take_over only when the policy allows it and the family wants to keep the service.
-   - charge: refund or leave.
-   - invoice: waive (only when the policy allows it) or pay_from_estate.
-   In refund_capture_ids list every charge of that item whose "refundable" is above 0.00. Leave a charge out only when the wishes suggest the family would not want it back, and then say so in "question".
-4. Call submit_plan with exactly one row per item_id.
-   - reason: one or two plain sentences naming the policy or the wish behind the choice.
-   - question: only when the family has to decide something.
-   - notes: anything else the family should know, such as a customer you left out.
-If submit_plan returns errors, correct those rows and call it again.`;
-
-const EXECUTE_TASK = (id: string) => `Task: carry out the approved plan in the next message, then record the outcome of every item.
-By action:
-- close: create_refund for each listed capture, then cancel_subscription with payload.reason "Account holder deceased. Handover case ${id}."
-- take_over: create_subscription with the item's plan_id, then suspend_subscription on the old subscription with reason "Being taken over by family. Handover case ${id}.", then create_refund for each listed capture.
-- pause: suspend_subscription with reason "Paused by family. Handover case ${id}."
-- refund: create_refund for each listed capture.
-- leave: nothing to do.
-- waive: cancel_invoice_auto_reminder, then cancel_sent_invoice with a one-line note. If no reminder is set, carry on.
-- pay_from_estate: cancel_invoice_auto_reminder, then generate_invoice_qr_code.
-For create_refund pass only capture_id and a short note_to_payer.
-When an item is finished call record_outcome with its item_id, a state and a one-sentence note. States: done; waiting (take_over and pay_from_estate wait on the family); blocked (a desk or PayPal refused: say why and what the family can do next); failed. The system re-reads PayPal and decides whether the item is confirmed.
-When every item has an outcome call finish with a note of two to four sentences for the family: what was done and what they still need to do. Put no amounts in the note; the system adds the figures.`;
-
-const HOLD_TASK = (id: string, pause: boolean) =>
-  pause
-    ? `Task: the notice is filed but the document is not yet matched, so only reversible steps are allowed. Call suspend_subscription with reason "Notice of death filed. Handover case ${id}." on every subscription in the next message whose status is ACTIVE. Then call finish with one sentence for the family.`
-    : `Task: undo the pause. Call activate_subscription with reason "Pause lifted by family. Handover case ${id}." on every subscription in the next message whose status is SUSPENDED. Then call finish with one sentence for the family.`;
-
-const INTAKE_PROMPT = `You read a document a family provides as evidence of a death (a funeral home notice, a death certificate, an obituary). Reply with JSON only, no prose: {"full_name": string or null, "date_of_death": "YYYY-MM-DD" or null, "kind": short description of the document}. Report only what the document says.`;
-
-// ---- local tools ----
-
-const fn = (name: string, description: string, parameters: Record<string, unknown>): LlmTool => ({
+const fn = (name: string, description: string, properties: Record<string, unknown> = {}, required: string[] = []): LlmTool => ({
   type: 'function',
-  function: { name, description, parameters },
-});
-const ALL_ACTIONS = [...new Set(Object.values(ACTIONS_BY_KIND).flat())];
-
-const SUBMIT_PLAN = fn('submit_plan', 'Submit the proposed plan: one row per item. Returns errors to correct, or accepted.', {
-  type: 'object',
-  properties: {
-    rows: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          item_id: { type: 'string' },
-          action: { type: 'string', enum: ALL_ACTIONS },
-          refund_capture_ids: { type: 'array', items: { type: 'string' } },
-          reason: { type: 'string' },
-          question: { type: 'string' },
-        },
-        required: ['item_id', 'action', 'refund_capture_ids', 'reason'],
-      },
-    },
-    notes: { type: 'array', items: { type: 'string' } },
-  },
-  required: ['rows'],
-});
-const RECORD_OUTCOME = fn('record_outcome', 'Record the outcome of one item after acting on it. The system verifies it against PayPal.', {
-  type: 'object',
-  properties: {
-    item_id: { type: 'string' },
-    state: { type: 'string', enum: ['done', 'waiting', 'blocked', 'failed'] },
-    note: { type: 'string' },
-  },
-  required: ['item_id', 'state', 'note'],
-});
-const FINISH = fn('finish', 'Call once when the task is complete.', {
-  type: 'object',
-  properties: { note: { type: 'string' } },
-  required: ['note'],
+  function: { name, description, parameters: { type: 'object', properties, required } },
 });
 
-type Local = Record<string, (args: Record<string, unknown>) => Promise<unknown>>;
+type Handlers = Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>;
+const ok = (data: unknown): ToolResult => ({ ok: true, data });
+const refuse = (p: Purchase, error: string): ToolResult => {
+  store.emit(p.id, { actor: 'rules', type: 'refused', summary: `Refused: ${error}` });
+  return { ok: false, refused: true, error };
+};
 
-// ---- the loop ----
-
-async function loop(
-  c: Case,
-  phase: Phase,
-  system: string,
-  user: unknown,
-  localDefs: LlmTool[],
-  local: Local,
-  llm: Llm,
-  done: () => boolean,
-  nudge: () => string | null,
-): Promise<void> {
-  const tools: LlmTool[] = [
-    ...SLUGS.flatMap((slug) =>
-      deskFor(slug)
-        .listTools(phase)
-        .map((t) => fn(`${slug}__${t.name}`, `[${MERCHANTS[slug].name}] ${t.description}`, t.parameters)),
-    ),
-    ...localDefs,
-  ];
+/** Runs the model with tools until `done()` or it stops calling tools. Returns the last text it wrote. */
+async function loop(p: Purchase, actor: 'clerk' | 'agent', system: string, user: unknown, tools: LlmTool[], handlers: Handlers, llm: Llm, done: () => boolean, maxTurns: number): Promise<string> {
   const messages: LlmMessage[] = [
     { role: 'system', content: system },
     { role: 'user', content: JSON.stringify(user) },
   ];
-  let nudges = 0;
-  // ponytail: fixed turn cap; raise it if estates grow beyond a few dozen items.
-  for (let turn = 0; turn < 40 && !done(); turn++) {
+  let last = '';
+  for (let turn = 0; turn < maxTurns && !done(); turn++) {
     const reply = await llm(messages, tools);
     const calls = reply.tool_calls ?? [];
+    const text = reply.content?.trim() ?? '';
     // A reply with neither text nor tool calls is not sent back: providers reject an empty assistant message.
-    if (calls.length || reply.content?.trim()) {
-      messages.push({ role: 'assistant', content: reply.content, ...(calls.length ? { tool_calls: calls } : {}) });
+    if (calls.length || text) messages.push({ role: 'assistant', content: reply.content, ...(calls.length ? { tool_calls: calls } : {}) });
+    if (text) {
+      last = text;
+      if (actor === 'agent') store.emit(p.id, { actor, type: 'note', summary: text });
     }
-    if (reply.content?.trim()) store.emit(c.id, { actor: 'agent', type: 'note', summary: reply.content.trim() });
-    if (!calls.length) {
-      const text = nudge();
-      if (!text || nudges++ >= 2) break;
-      messages.push({ role: 'user', content: text });
-      continue;
-    }
-    const results = await Promise.all(
-      calls.map(async (call) => {
-        let args: Record<string, unknown> = {};
-        try {
-          const parsed = JSON.parse(call.function.arguments || '{}');
-          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) args = parsed;
-        } catch {
-          /* malformed arguments are treated as empty; the tool will say what is missing */
-        }
-        const name = call.function.name;
-        let result: unknown;
-        if (local[name]) result = await local[name](args);
-        else {
-          const [slug, tool] = name.split('__') as [MerchantSlug, string];
-          result = SLUGS.includes(slug)
-            ? await deskFor(slug).callTool(tool, args, c.id)
-            : { ok: false, denied: true, error: `Unknown tool ${name}` };
-        }
-        return { role: 'tool' as const, tool_call_id: call.id, content: JSON.stringify(result).slice(0, 5000) };
-      }),
-    );
-    messages.push(...results);
-  }
-}
-
-// ---- phases ----
-
-const tokens = (s: string) => s.toLowerCase().replace(/[^\p{L}\s]/gu, ' ').split(/\s+/).filter(Boolean);
-/** Same person if the first and last name tokens agree; middle names and initials are ignored. */
-function sameName(a: string, b: string): boolean {
-  const x = tokens(a);
-  const y = tokens(b);
-  return x.length > 0 && y.length > 0 && x[0] === y[0] && x.at(-1) === y.at(-1);
-}
-
-async function intake(c: Case, llm: Llm): Promise<void> {
-  const d = c.document;
-  d.mismatches = [];
-  d.extracted = undefined;
-  c.tier = 'filed';
-  if (!d.text && !d.dataUrl) {
-    d.mismatches = ['No document was provided.'];
-  } else {
-    const content = [
-      { type: 'text', text: `Document provided by the family:\n\n${d.text ?? '(see image)'}` },
-      ...(d.dataUrl ? [{ type: 'image_url', image_url: { url: d.dataUrl } }] : []),
-    ];
-    const reply = await llm(
-      [
-        { role: 'system', content: INTAKE_PROMPT },
-        { role: 'user', content },
-      ],
-      [],
-    );
-    const json = /\{[\s\S]*\}/.exec(reply.content ?? '')?.[0];
-    let x: { full_name?: string | null; date_of_death?: string | null; kind?: string } = {};
-    try {
-      x = JSON.parse(json ?? '{}');
-    } catch {
-      /* unreadable reply counts as nothing extracted */
-    }
-    d.extracted = { fullName: x.full_name ?? undefined, dateOfDeath: x.date_of_death ?? undefined, kind: x.kind };
-    if (!x.full_name || !sameName(x.full_name, c.deceased.fullName)) {
-      d.mismatches.push(`The document names ${x.full_name ? `"${x.full_name}"` : 'no one'}; the notice says "${c.deceased.fullName}".`);
-    }
-    if (x.date_of_death !== c.deceased.dateOfDeath) {
-      d.mismatches.push(`The document gives ${x.date_of_death ?? 'no date of death'}; the notice says ${c.deceased.dateOfDeath}.`);
-    }
-  }
-  if (!d.mismatches.length) c.tier = 'verified';
-  store.emit(c.id, {
-    actor: 'agent',
-    type: 'status',
-    summary:
-      c.tier === 'verified'
-        ? `Read the document (${d.extracted?.kind ?? 'document'}). The name and the date of death match the notice.`
-        : `The document could not be matched: ${d.mismatches.join(' ')} Only reversible steps are available until it matches.`,
-  });
-}
-
-const SAFE_DEFAULT: Record<Item['kind'], Action> = { subscription: 'pause', charge: 'leave', invoice: 'pay_from_estate' };
-
-async function plan(c: Case, llm: Llm): Promise<void> {
-  if (c.approvedAt) throw new Error('This case is already approved.');
-  c.status = 'planning';
-  const previous = { items: c.items, notes: c.notes };
-  try {
-    await draftPlan(c, llm);
-  } catch (e) {
-    // A failed attempt must not leave half a plan behind: the earlier one, if any, stays as it was.
-    c.items = previous.items;
-    c.notes = previous.notes;
-    throw e;
-  }
-}
-
-async function draftPlan(c: Case, llm: Llm): Promise<void> {
-  const inv = inventory(c);
-  c.items = inv.items;
-  c.notes = inv.nearMatches.map(
-    (n) => `${MERCHANTS[n.merchant].name} also has a customer named ${n.fullName} (${n.email}). ${n.reason} It was left out.`,
-  );
-  let attempts = 0;
-  let accepted = false;
-  const local: Local = {
-    submit_plan: async (args) => {
-      attempts++;
-      const rows = (Array.isArray(args.rows) ? args.rows : []) as PlanRow[];
-      const { decisions, errors } = validatePlan(rows, c.items, MERCHANTS);
-      if (errors.length && attempts < 3) return { accepted: false, errors };
-      for (const item of c.items) {
-        const d = decisions.get(item.id);
-        const row = rows.find((r) => r.item_id === item.id);
-        if (!d || !row) continue;
-        item.proposed = { ...d, reason: String(row.reason ?? ''), ...(row.question ? { question: String(row.question) } : {}) };
-        item.decided = { action: d.action, refunds: d.refunds.map((r) => ({ ...r })) };
+    if (!calls.length) break;
+    // One at a time, in the order the model gave: these are steps of one payment, not independent lookups.
+    for (const call of calls) {
+      let args: Record<string, unknown> = {};
+      try {
+        const parsed = JSON.parse(call.function.arguments || '{}');
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) args = parsed;
+      } catch {
+        /* malformed arguments are treated as empty; the tool says what is missing */
       }
-      for (const n of Array.isArray(args.notes) ? args.notes : []) c.notes.push(String(n));
-      accepted = true;
-      return { accepted: true, dropped: errors };
-    },
-  };
-  await loop(
-    c,
-    'plan',
-    `${PRINCIPLES}\n\n${PLAN_TASK}`,
-    {
-      case_id: c.id,
-      today: new Date().toISOString().slice(0, 10),
-      person: c.deceased,
-      family_representative: c.representative,
-      wishes: c.wishes,
-      merchants: SLUGS.map((slug) => ({ slug, name: MERCHANTS[slug].name, policy: MERCHANTS[slug].policy.summary })),
-    },
-    [SUBMIT_PLAN],
-    local,
-    llm,
-    () => accepted,
-    () => 'Call submit_plan with one row for every item.',
-  );
-  for (const item of c.items) {
-    if (item.decided) continue;
-    const action = SAFE_DEFAULT[item.kind];
-    item.proposed = { action, refunds: [], reason: 'No valid proposal was produced for this item, so the reversible default is shown. Please choose.' };
-    item.decided = { action, refunds: [] };
-  }
-  await Promise.all(c.items.map(async (item) => void (item.liveStatus = await readLiveStatus(item))));
-  c.status = 'review';
-  store.emit(c.id, {
-    actor: 'agent',
-    type: 'plan',
-    summary: c.items.length
-      ? `Plan ready: ${c.items.length} items at ${new Set(c.items.map((i) => i.merchant)).size} merchants.`
-      : 'No accounts were found for the emails given.',
-  });
-}
-
-async function hold(c: Case, llm: Llm, pause: boolean): Promise<void> {
-  if (c.approvedAt) throw new Error('This case is already approved.');
-  if (!c.items.length) c.items = inventory(c).items;
-  const subs = c.items.filter((i) => i.kind === 'subscription');
-  await Promise.all(subs.map(async (item) => void (item.liveStatus = await readLiveStatus(item))));
-  let finished = false;
-  await loop(
-    c,
-    pause ? 'pause' : 'resume',
-    `${PRINCIPLES}\n\n${HOLD_TASK(c.id, pause)}`,
-    { subscriptions: subs.map((i) => ({ merchant: i.merchant, label: i.label, subscription_id: i.paypalId, status: i.liveStatus })) },
-    [FINISH],
-    { finish: async () => ((finished = true), { ok: true }) },
-    llm,
-    () => finished,
-    () => 'Continue, then call finish.',
-  );
-  const want = pause ? 'SUSPENDED' : 'ACTIVE';
-  for (const item of subs) await verifyOutcome(item, want);
-  c.paused = subs.some((i) => i.liveStatus === 'SUSPENDED');
-  const n = subs.filter((i) => i.liveStatus === want).length;
-  store.emit(c.id, {
-    actor: 'system',
-    type: 'outcome',
-    summary: `${n} of ${subs.length} subscriptions are ${pause ? 'paused' : 'active'}, confirmed with PayPal.`,
-  });
-}
-
-/** A take-over waits on the family member's approval at PayPal until the old subscription is cancelled. */
-const waits = (item: Item) => item.decided!.action === 'pay_from_estate' || (item.decided!.action === 'take_over' && item.liveStatus !== 'CANCELLED');
-
-function setOutcome(item: Item, verified: boolean, claimed: string, note: string): void {
-  const state = verified ? (waits(item) ? 'waiting' : 'done') : claimed === 'failed' ? 'failed' : claimed === 'not_completed' ? 'not_completed' : 'blocked';
-  item.outcome = {
-    state,
-    refs: { ...item.refs },
-    verified,
-    note: verified || claimed === 'blocked' || claimed === 'failed' || claimed === 'not_completed' ? note : `${note} PayPal does not show this as completed.`.trim(),
-    link: item.refs.approveLink ?? item.refs.payLink,
-  };
-}
-
-const DONE_TEXT: Record<Action, string> = {
-  close: 'closed',
-  take_over: 'being taken over; the old subscription is paused until the new one is approved in PayPal',
-  pause: 'paused',
-  refund: 'refund issued',
-  leave: 'left as it is',
-  waive: 'waived; the invoice is cancelled',
-  pay_from_estate: 'to be paid from the estate; a payment link is ready',
-};
-
-const doneText = (item: Item) =>
-  item.decided!.action === 'take_over' && item.liveStatus === 'CANCELLED'
-    ? 'taken over; the new subscription is approved and the old one is cancelled'
-    : DONE_TEXT[item.decided!.action];
-
-function buildStatement(c: Case, note: string): string {
-  let total = 0;
-  const lines = c.items.map((item) => {
-    const o = item.outcome;
-    const d = item.decided!;
-    // A refund id only exists when PayPal issued the refund, so these count whatever became of the rest of the row.
-    const refunds = d.refunds.filter((r) => item.refs[`refund:${r.captureId}`]);
-    const sum = refunds.reduce((n, r) => n + toCents(r.amount), 0);
-    total += sum;
-    const refundText = refunds.length
-      ? ` Refunded $${fromCents(sum)} to the original payment method (${refunds.map((r) => item.refs[`refund:${r.captureId}`]).join(', ')}).`
-      : '';
-    const status = o?.verified ? `${doneText(item)}. Confirmed with PayPal.` : `not completed. ${o?.note ?? 'It was not carried out.'}`;
-    return `- ${MERCHANTS[item.merchant].name}, ${item.label} (${item.paypalId}): ${status}${refundText}`;
-  });
-  return [
-    'Closing statement',
-    `Case ${c.id}, ${new Date().toISOString().slice(0, 10)}`,
-    `Prepared for ${c.representative.name} regarding the accounts of ${c.deceased.fullName}.`,
-    '',
-    note,
-    '',
-    ...lines,
-    '',
-    `Total refunded: $${fromCents(total)}`,
-  ].join('\n');
-}
-
-async function execute(c: Case, llm: Llm): Promise<void> {
-  if (c.tier !== 'verified' || !c.approvedAt) throw new Error('The plan has not been approved.');
-  c.status = 'executing';
-  const todo = () => c.items.filter((i) => !i.outcome);
-  let note = '';
-  let finished = false;
-  const local: Local = {
-    record_outcome: async (args) => {
-      const item = c.items.find((i) => i.id === args.item_id);
-      if (!item) return { error: `There is no item ${String(args.item_id)}.` };
-      const verified = await verifyOutcome(item);
-      setOutcome(item, verified, String(args.state), String(args.note ?? ''));
-      store.emit(c.id, {
-        actor: 'system',
-        type: 'outcome',
-        summary: `${MERCHANTS[item.merchant].name}, ${item.label}: ${item.outcome!.verified ? `${doneText(item)}. Confirmed with PayPal.` : `${item.outcome!.state}. ${item.outcome!.note}`}`,
-        detail: { itemId: item.id, outcome: item.outcome },
-      });
-      return { recorded: item.outcome!.state, confirmed_with_paypal: verified, live_status: item.liveStatus, items_without_outcome: todo().map((i) => i.id) };
-    },
-    finish: async (args) => {
-      note = String(args.note ?? '');
-      finished = true;
-      return { ok: true, items_without_outcome: todo().map((i) => i.id) };
-    },
-  };
-  await loop(
-    c,
-    'execute',
-    `${PRINCIPLES}\n\n${EXECUTE_TASK(c.id)}`,
-    {
-      case_id: c.id,
-      family_representative: c.representative,
-      plan: c.items.map((i) => ({
-        item_id: i.id,
-        merchant: i.merchant,
-        kind: i.kind,
-        label: i.label,
-        paypal_id: i.paypalId,
-        plan_id: i.planId,
-        action: i.decided!.action,
-        refunds: i.decided!.refunds.map((r) => ({ capture_id: r.captureId, amount: r.amount })),
-      })),
-    },
-    [RECORD_OUTCOME, FINISH],
-    local,
-    llm,
-    () => finished && !todo().length,
-    () => (todo().length ? `These items have no recorded outcome yet: ${todo().map((i) => i.id).join(', ')}. Finish them and record each outcome.` : finished ? null : 'Call finish with the note for the family.'),
-  );
-  // PayPal has the last word on every row. A row the model never recorded, or recorded before it had acted,
-  // is judged by what PayPal shows now.
-  for (const item of c.items) {
-    const verified = await verifyOutcome(item);
-    const o = item.outcome;
-    if (!o) {
-      setOutcome(item, verified, 'not_completed', verified ? 'Completed as approved.' : 'The agent stopped before finishing this item. Nothing is shown as done that PayPal does not confirm.');
-    } else if (o.verified !== verified) {
-      setOutcome(item, verified, verified ? 'done' : 'blocked', verified ? 'Completed as approved.' : o.note);
-    } else {
-      o.refs = { ...item.refs };
-      o.link = item.refs.approveLink ?? item.refs.payLink;
+      const handler = handlers[call.function.name];
+      let result: ToolResult;
+      try {
+        result = handler ? await handler(args) : { ok: false, refused: true, error: `There is no tool ${call.function.name}.` };
+      } catch (e) {
+        result = { ok: false, refused: false, error: (e as Error).message };
+        store.emit(p.id, { actor: 'desk', type: 'error', summary: `PayPal said: ${(e as Error).message}` });
+      }
+      messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result).slice(0, 4000) });
     }
   }
-  c.statementNote = note || 'The steps below were carried out for you.';
-  c.statement = buildStatement(c, c.statementNote);
-  c.status = 'done';
-  store.emit(c.id, { actor: 'system', type: 'status', summary: 'Closing statement ready.' });
+  return last;
 }
 
-/**
- * After the family member approves a replacement subscription at PayPal, cancels the old one and closes the row.
- * Plain code, no model: the family already approved the take-over, and the desk still checks the call.
- */
-export async function finalizeTakeOvers(caseId: string): Promise<void> {
-  const c = store.cases.get(caseId);
-  if (!c || c.running || c.status !== 'done') return;
-  let changed = false;
-  for (const item of c.items) {
-    if (item.decided?.action !== 'take_over' || item.outcome?.state !== 'waiting' || !(await replacementApproved(item))) continue;
-    const r = await deskFor(item.merchant).callTool(
-      'cancel_subscription',
-      { subscription_id: item.paypalId, payload: { reason: `Taken over by family. Handover case ${c.id}.` } },
-      c.id,
+const STYLE = `Write to the buyer in the language they use (their language code is given; if they write in another language, answer in that one). Short, plain sentences. No sales talk, no flattery, no emoji.`;
+
+// ---- the clerk: talks to a buyer before they pay ----
+
+const CLERK = `You are the clerk at ${SELLER.shop}, a small seller of digital goods in ${SELLER.place}. The shop prices in hours of average income instead of dollars: a buyer is quoted the amount that costs them a comparable share of local income, inside the seller's limits. Figures come from the World Bank (income per person, divided by 2,000 working hours); they are averages, not wages.
+
+How it works, which you may explain:
+- The price depends on the country the buyer's PayPal wallet is registered in. PayPal reports that country when the buyer approves the payment. If it matches the quote the payment is taken; if not, nothing is taken and the buyer is shown the price for their wallet's country.
+- You cannot change which country a price is for, and you cannot change a price yourself.
+- Some buyers' circumstances do not match their wallet's country: a student abroad, someone supporting family elsewhere, someone who has lost their income. For them you may give help from a pool that other buyers paid into. Use help_limit to see how much is possible, then grant_help with an amount and a one-sentence reason. Give help only when the buyer has told you such a circumstance. You do not need proof; the limits are small on purpose. If the pool is empty, say so plainly.
+- Never promise an amount before a tool has confirmed it.
+
+${STYLE} Answer in at most four sentences.`;
+
+/** One turn of conversation. The reply is appended to the purchase's messages. */
+export async function runClerk(purchaseId: string, text: string, llm: Llm = defaultLlm): Promise<string | null> {
+  const p = store.purchases.get(purchaseId);
+  if (!p) return 'This purchase is no longer available.';
+  if (p.status !== 'open') return 'The payment has already started.';
+  if (p.running) return 'The clerk is still answering.';
+  const product = productById(p.productId)!;
+  p.running = true;
+  p.messages.push({ from: 'buyer', text, ts: new Date().toISOString() });
+  const limit = () => helpLimitCents(product, RULES, p.quote.price.fair, poolAvailableCents(p), grantsThisMonth());
+  const handlers: Handlers = {
+    price_for_country: async (a) => {
+      const price = priceFor(product, RULES, String(a.country ?? '').toUpperCase());
+      return price ? ok(price) : { ok: false, refused: false, error: 'There is no income figure for that country.' };
+    },
+    help_limit: async () => {
+      const l = limit();
+      return ok({ most_you_can_give: fromCents(l.maxCents), why: l.why, already_given_to_this_buyer: p.help?.amount ?? '0.00' });
+    },
+    grant_help: async (a) => {
+      const cents = toCents(String(a.amount ?? ''));
+      const l = limit();
+      if (!(cents > 0)) return refuse(p, 'Help needs an amount above 0.00.');
+      if (cents > l.maxCents) return refuse(p, `At most $${fromCents(l.maxCents)} can be given. ${l.why}`);
+      p.help = { amount: fromCents(cents), reason: String(a.reason ?? '').slice(0, 300) };
+      p.amount = amountDue(p.quote.price.fair, p.help.amount, p.gift);
+      store.emit(p.id, { actor: 'clerk', type: 'tool', summary: `The clerk took $${p.help.amount} off from the pool. ${p.help.reason}` });
+      return ok({ help: p.help.amount, buyer_now_pays: p.amount });
+    },
+  };
+  try {
+    const reply = await loop(
+      p,
+      'clerk',
+      CLERK,
+      {
+        product: { title: product.title, list_price: product.listPrice },
+        quote: p.quote.price,
+        gift_added_by_buyer: p.gift,
+        help_already_given: p.help ?? null,
+        buyer_language: p.buyer.language,
+        conversation: p.messages,
+      },
+      [
+        fn('price_for_country', 'Look up the price of this product for another country, for explaining or comparing.', { country: { type: 'string', description: 'Two-letter country code, e.g. VN' } }, ['country']),
+        fn('help_limit', 'See how much help could be given to this buyer right now, and why that is the limit.'),
+        fn('grant_help', 'Take an amount off this buyer\'s price, paid from the pool. Only after the buyer has told you why their circumstances differ from their wallet\'s country.', { amount: { type: 'string', description: 'USD, e.g. "4.00"' }, reason: { type: 'string', description: 'One sentence, in English, for the seller\'s ledger' } }, ['amount', 'reason']),
+      ],
+      handlers,
+      llm,
+      () => false,
+      6,
     );
-    if (!r.ok) continue;
-    setOutcome(item, await verifyOutcome(item), 'done', `${c.representative.name} approved the new subscription at PayPal. The old one is cancelled.`);
-    store.emit(c.id, {
+    p.messages.push({ from: 'clerk', text: reply || 'I could not answer that just now. The price shown is still valid.', ts: new Date().toISOString() });
+    return null;
+  } catch (e) {
+    p.messages.push({ from: 'clerk', text: 'The clerk is not available right now. The price shown is still valid and you can pay without talking to the clerk.', ts: new Date().toISOString() });
+    store.emit(p.id, { actor: 'system', type: 'error', summary: `The clerk stopped: ${(e as Error).message}` });
+    return null;
+  } finally {
+    p.running = false;
+  }
+}
+
+// ---- settlement: after the buyer approved at PayPal ----
+
+const SETTLE = `You settle one payment for ${SELLER.shop}. The buyer was quoted a price for one country and has approved a payment at PayPal. The rule: the payment is taken only if PayPal reports that the wallet is registered in the quoted country. The desk enforces this in code and will refuse anything else.
+
+Steps:
+1. Call read_order to see what PayPal reports: the order status and the wallet's country.
+2. If the wallet's country matches the quoted country: call hold_payment, then take_payment.
+3. If it does not match, or PayPal reports no country: call release_payment. Nothing is taken.
+4. If a step is refused, read the reason. Do not repeat a refused step; release_payment is always safe.
+5. Call finish with a message for the buyer: what PayPal reported, and what happened to their money. If the payment was released because of the country, say that nothing was taken and that they can buy at the price for their wallet's country. Do not state amounts other than those in the tool results.
+
+Before each step, write one short sentence saying what you are about to do. ${STYLE}`;
+
+const SETTLE_TOOLS = [
+  fn('read_order', 'Ask PayPal about this order: its status and the country the paying wallet is registered in.'),
+  fn('hold_payment', 'Have PayPal place the hold the buyer approved (authorise). Nothing is taken yet.'),
+  fn('take_payment', 'Capture the held payment. Refused unless the wallet country matches the quote.'),
+  fn('release_payment', 'Release the hold, or abandon the order if no hold was placed. Nothing is taken.'),
+  fn('finish', 'End with the message the buyer will read.', { message: { type: 'string' } }, ['message']),
+];
+
+/** Decides and carries out one payment after the buyer approved it. Errors are reported on the purchase, not thrown. */
+export async function runSettlement(purchaseId: string, llm: Llm = defaultLlm): Promise<void> {
+  const p = store.purchases.get(purchaseId);
+  if (!p || p.status !== 'approving' || p.running || !p.paypal.orderId) return;
+  const product = productById(p.productId)!;
+  const pp = backend();
+  const orderId = p.paypal.orderId;
+  p.status = 'settling';
+  p.running = true;
+  store.emit(p.id, { actor: 'system', type: 'status', summary: 'The buyer approved at PayPal. Checking the wallet.' });
+
+  // The tools below change the status; TypeScript cannot see that through the closures, so it is read through this.
+  const status = () => p.status as Purchase['status'];
+  let message = '';
+  let finished = false;
+  let refusal = ''; // why the rules refused to take the payment, if they did
+
+  /** PayPal is asked afresh every time: the decision never rests on something the model remembered. */
+  const read = async (): Promise<OrderView> => {
+    const order = await pp.getOrder(orderId);
+    // PayPal reports mainland China as C2 in some places; the income table and quotes use CN.
+    if (order.payerCountry) order.payerCountry = order.payerCountry.toUpperCase() === 'C2' ? 'CN' : order.payerCountry.toUpperCase();
+    if (order.payerCountry) p.paypal.walletCountry = order.payerCountry;
+    if (order.payerId) p.paypal.payerId = order.payerId;
+    if (order.authorizationId) p.paypal.authorizationId = order.authorizationId;
+    return order;
+  };
+  const alreadyBought = () => !!p.paypal.payerId && store.bought.has(`${p.paypal.payerId}:${p.productId}`);
+
+  const release = async (): Promise<string> => {
+    if (status() === 'captured') return 'The payment was already taken.';
+    const order = await read();
+    if (order.authorizationId && order.authorizationStatus !== 'VOIDED' && order.authorizationStatus !== 'CAPTURED') {
+      await pp.voidAuthorization(order.authorizationId);
+      store.emit(p.id, { actor: 'desk', type: 'tool', summary: `Released the hold at PayPal (authorisation ${order.authorizationId}). Nothing was taken.` });
+    } else {
+      store.emit(p.id, { actor: 'desk', type: 'tool', summary: 'No hold had been placed. The order is left unpaid and nothing was taken.' });
+    }
+    p.status = 'voided';
+    return 'Released. Nothing was taken.';
+  };
+
+  const handlers: Handlers = {
+    read_order: async () => {
+      const order = await read();
+      store.emit(p.id, {
+        actor: 'desk',
+        type: 'tool',
+        summary: `PayPal: order ${orderId} is ${order.status}. The wallet is registered in ${order.payerCountry ? (priceFor(product, RULES, order.payerCountry)?.countryName ?? order.payerCountry) : 'a country PayPal did not report'}.`,
+        detail: { result: order },
+      });
+      return ok({ status: order.status, wallet_country: order.payerCountry ?? null, quoted_country: p.quote.price.country, amount: order.amount, hold_placed: !!order.authorizationId });
+    },
+    hold_payment: async () => {
+      const before = await read();
+      if (before.authorizationId) return ok({ hold: before.authorizationId });
+      if (before.status !== 'APPROVED') return refuse(p, `The buyer has not approved this order at PayPal (status ${before.status}).`);
+      // The country is known before any hold is placed, so a mismatch never ties up the buyer's money.
+      if (before.payerCountry && before.payerCountry.toUpperCase() !== p.quote.price.country) {
+        refusal = `PayPal reports this wallet is in ${priceFor(product, RULES, before.payerCountry)?.countryName ?? before.payerCountry}. The price was quoted for ${p.quote.price.countryName}.`;
+        return refuse(p, `${refusal} No hold is placed.`);
+      }
+      const a = await pp.authorizeOrder(orderId);
+      p.paypal.authorizationId = a.authorizationId;
+      store.emit(p.id, { actor: 'desk', type: 'tool', summary: `PayPal is holding $${p.amount} (authorisation ${a.authorizationId}). Nothing is taken yet.` });
+      return ok({ hold: a.authorizationId });
+    },
+    take_payment: async () => {
+      if (status() === 'captured') return refuse(p, 'This payment was already taken.');
+      const order = await read();
+      const decision = captureDecision({ purchase: p, order, alreadyBought: alreadyBought() });
+      if (!decision.capture) {
+        refusal = decision.reason;
+        return refuse(p, decision.reason);
+      }
+      const c = await pp.captureAuthorization(order.authorizationId!, `capture-${p.id}`);
+      p.paypal.captureId = c.captureId;
+      p.status = 'captured';
+      store.bought.add(`${p.paypal.payerId}:${p.productId}`);
+      const move = (kind: 'gift' | 'help', cents: number) => {
+        if (!cents) return;
+        store.pool.balance = fromCents(Math.max(0, toCents(store.pool.balance) + (kind === 'gift' ? cents : -cents)));
+        store.pool.entries.push({ ts: new Date().toISOString(), purchaseId: p.id, kind, amount: fromCents(cents) });
+      };
+      move('gift', toCents(p.gift));
+      move('help', toCents(p.help?.amount ?? '0'));
+      store.emit(p.id, { actor: 'desk', type: 'tool', summary: `PayPal took $${p.amount} (capture ${c.captureId}). The wallet country matched the quote.` });
+      return ok({ captured: c.captureId, amount: p.amount });
+    },
+    release_payment: async () => ok({ result: await release() }),
+    finish: async (a) => {
+      message = String(a.message ?? '').slice(0, 1200);
+      finished = true;
+      return ok({ done: true });
+    },
+  };
+
+  try {
+    await loop(
+      p,
+      'agent',
+      SETTLE,
+      { product: product.title, quoted_country: p.quote.price.country, quoted_country_name: p.quote.price.countryName, amount: p.amount, buyer_language: p.buyer.language, buyer_is_an_ai_agent: p.buyer.viaAgent },
+      SETTLE_TOOLS,
+      handlers,
+      llm,
+      () => finished,
+      10,
+    );
+  } catch (e) {
+    store.emit(p.id, { actor: 'system', type: 'error', summary: `The agent stopped: ${(e as Error).message}` });
+  }
+
+  // Whatever the agent did or did not do, the purchase must end either taken and confirmed, or released.
+  // Code never takes a payment here: anything still open is released.
+  try {
+    if (status() !== 'captured' && status() !== 'voided') {
+      store.emit(p.id, { actor: 'system', type: 'status', summary: 'The agent left this payment open, so it is being released.' });
+      await release();
+    }
+    const order = await read();
+    const captured = status() === 'captured';
+    const verified = captured ? order.captureStatus === 'COMPLETED' : order.captureStatus === undefined;
+    const mismatch = !captured && !!p.paypal.walletCountry && p.paypal.walletCountry !== p.quote.price.country;
+    const offer = mismatch ? makeQuote(p.productId, p.paypal.walletCountry) : null;
+    const fallback = captured
+      ? `Paid. PayPal confirmed the wallet is registered in ${p.quote.price.countryName}.`
+      : `Nothing was taken. ${refusal || 'The payment could not be confirmed, so it was released.'}`;
+    p.outcome = { captured, verified, text: message || fallback, ...(offer && typeof offer !== 'string' ? { offer } : {}) };
+    store.emit(p.id, {
       actor: 'system',
       type: 'outcome',
-      summary: `${MERCHANTS[item.merchant].name}, ${item.label}: ${item.outcome!.verified ? `${doneText(item)}. Confirmed with PayPal.` : item.outcome!.note}`,
-      detail: { itemId: item.id, outcome: item.outcome },
+      summary: captured ? `Paid $${p.amount}${verified ? ', confirmed with PayPal' : ''}.` : `Released. ${refusal || 'Nothing was taken.'}`,
     });
-    changed = true;
-  }
-  if (changed) {
-    c.statement = buildStatement(c, c.statementNote ?? '');
-    store.emit(c.id, { actor: 'system', type: 'status', summary: 'Closing statement updated.' });
-  }
-}
-
-// ---- entry point ----
-
-const STARTED: Record<Phase, string> = {
-  intake: 'Reading the document.',
-  plan: 'Looking for accounts at each merchant and drafting a plan.',
-  pause: 'Pausing every active subscription. This can be undone.',
-  resume: 'Lifting the pause.',
-  execute: 'Carrying out the approved plan.',
-};
-
-/** Runs one phase to completion. `intake` continues into `plan`. Errors are reported on the case, not thrown. */
-export async function runPhase(caseId: string, phase: Phase, llm: Llm = defaultLlm): Promise<void> {
-  const c = store.cases.get(caseId);
-  if (!c) throw new Error('Unknown case.');
-  if (c.running) throw new Error('A run is already active for this case.');
-  const before = c.status;
-  try {
-    for (const step of phase === 'intake' ? (['intake', 'plan'] as Phase[]) : [phase]) {
-      c.running = step;
-      store.emit(c.id, { actor: 'system', type: 'status', summary: STARTED[step] });
-      if (step === 'intake') await intake(c, llm);
-      else if (step === 'plan') await plan(c, llm);
-      else if (step === 'execute') await execute(c, llm);
-      else await hold(c, llm, step === 'pause');
-    }
   } catch (e) {
-    if (c.status === 'planning' || c.status === 'executing') c.status = c.status === 'planning' ? before : 'review';
-    c.running = null;
-    store.emit(c.id, { actor: 'system', type: 'error', summary: `Stopped: ${(e as Error).message}` });
-    return;
+    p.outcome = { captured: status() === 'captured', verified: false, text: 'PayPal could not be reached to confirm the result. This shop will not take the payment; a hold that is still open at PayPal expires on its own.' };
+    store.emit(p.id, { actor: 'system', type: 'error', summary: `PayPal could not be reached to confirm the result: ${(e as Error).message}` });
+    if (status() === 'settling') p.status = 'voided';
+  } finally {
+    p.running = false;
+    store.emit(p.id, { actor: 'system', type: 'status', summary: 'Done.' });
   }
-  c.running = null;
-  store.emit(c.id, { actor: 'system', type: 'status', summary: 'Ready.' });
 }

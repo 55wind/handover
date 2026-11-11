@@ -1,174 +1,123 @@
 // Development and tests only (PAYPAL_FAKE=1). Nothing in this file talks to PayPal or moves money.
 import { randomBytes } from 'node:crypto';
-import { fromCents, toCents } from './guard';
-import type { Backend } from './types';
+import type { Backend, OrderView } from './types';
 
-type Args = Record<string, unknown>;
-interface Sub {
-  id: string;
-  status: 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' | 'APPROVAL_PENDING';
-  plan_id: string;
-  subscriber: unknown;
-  links?: { href: string; rel: string; method: string }[];
-}
-interface Capture { id: string; orderId: string; cents: number; refunded: number }
-interface Invoice {
-  id: string;
-  status: 'SENT' | 'CANCELLED';
-  detail: { currency_code: string; metadata: { recipient_view_url: string } };
-  amount: { currency_code: string; value: string };
-  primary_recipients: unknown[];
+/** Demo wallets for the development approval page. `id` is the fake payer id. */
+export const WALLETS: { id: string; name: string; country: string }[] = [
+  { id: 'FAKEPAYERVN01', name: 'Linh', country: 'VN' },
+  { id: 'FAKEPAYERDE01', name: 'Anna', country: 'DE' },
+  { id: 'FAKEPAYERBR01', name: 'Tomás', country: 'BR' },
+  { id: 'FAKEPAYERJP01', name: 'Aiko', country: 'JP' },
+  { id: 'FAKEPAYERUS01', name: 'Sam', country: 'US' },
+  { id: 'FAKEPAYERNO01', name: 'Ingrid', country: 'NO' },
+  { id: 'FAKEPAYERNP01', name: 'Sunita', country: 'NP' },
+  { id: 'FAKEPAYERNG01', name: 'Chidi', country: 'NG' },
+];
+
+interface Order {
+  view: OrderView;
+  returnUrl: string;
+  cancelUrl: string;
 }
 interface State {
-  subs: Map<string, Sub>;
-  captures: Map<string, Capture>;
-  refunds: Map<string, unknown>;
-  invoices: Map<string, Invoice>;
+  orders: Map<string, Order>;
   fail: Map<string, string>;
 }
 
-// On globalThis so the objects survive Next.js hot reloads.
-const g = globalThis as { __handoverFake?: State };
-const s: State = (g.__handoverFake ??= { subs: new Map(), captures: new Map(), refunds: new Map(), invoices: new Map(), fail: new Map() });
+// On globalThis so orders survive Next.js hot reloads.
+const g = globalThis as { __fairHourFake?: State };
+const s: State = (g.__fairHourFake ??= { orders: new Map(), fail: new Map() });
 
-const rid = (n: number) => Array.from(randomBytes(n), (b) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
-const usd = (cents: number) => ({ currency_code: 'USD', value: fromCents(cents) });
-const person = (fullName: string, email: string) => ({ email_address: email, name: { full_name: fullName } });
+const rid = () => Array.from(randomBytes(17), (b) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
 
 // Messages read the way the real backend reports PayPal errors: "<message>: <detail>".
-const notFound = () => new Error('The specified resource does not exist.: Requested resource ID was not found.');
+const notFound = () =>
+  new Error('The specified resource does not exist.: Specified resource ID does not exist. Please check the resource ID and try again.');
 const refused = (detail: string) =>
   new Error(`The requested action could not be performed, semantically incorrect, or failed business validation.: ${detail}`);
-function need<T>(v: T | undefined): T {
-  if (!v) throw notFound();
-  return v;
+
+function order(orderId: string): Order {
+  const o = s.orders.get(orderId);
+  if (!o) throw notFound();
+  return o;
+}
+/** The order that holds this authorization or capture. */
+function holding(key: 'authorizationId' | 'captureId', id: string): OrderView {
+  for (const o of s.orders.values()) if (o.view[key] === id) return o.view;
+  throw notFound();
+}
+function trip(method: keyof Backend): void {
+  const message = s.fail.get(method);
+  if (message === undefined) return;
+  s.fail.delete(method);
+  throw new Error(message);
 }
 
-/** The path of the page PayPal would return the buyer to. */
-function backPath(args: Args): string {
-  try {
-    return new URL(String((args.application_context as { return_url?: string } | undefined)?.return_url)).pathname;
-  } catch {
-    return '/';
-  }
+/** Test hook: the next call of this method throws this message, as if PayPal had refused. */
+export function failNext(method: keyof Backend, message: string): void {
+  s.fail.set(method, message);
 }
 
-const captureStatus = (c: Capture) => (c.refunded === 0 ? 'COMPLETED' : c.refunded < c.cents ? 'PARTIALLY_REFUNDED' : 'REFUNDED');
-
-/** Stands in for the buyer approving a new subscription at PayPal. False when there is nothing to approve. */
-export function approveSubscription(id: string): boolean {
-  const sub = s.subs.get(id);
-  if (sub?.status !== 'APPROVAL_PENDING') return false;
-  sub.status = 'ACTIVE';
-  return true;
+/** Stands in for the buyer approving at PayPal with this wallet. Returns where PayPal would send the browser next. */
+export function approve(orderId: string, walletId: string): string {
+  const o = order(orderId);
+  const wallet = WALLETS.find((w) => w.id === walletId);
+  if (!wallet) throw new Error(`Unknown development wallet: ${walletId}`);
+  if (o.view.status !== 'PAYER_ACTION_REQUIRED') throw new Error(`Order ${orderId} is not awaiting approval: it is ${o.view.status}.`);
+  Object.assign(o.view, { status: 'APPROVED', payerId: wallet.id, payerCountry: wallet.country });
+  // Plain string handling: in development the return URL is a path, which `new URL` cannot parse without a base.
+  return `${o.returnUrl}${o.returnUrl.includes('?') ? '&' : '?'}token=${orderId}&PayerID=${walletId}`;
 }
 
-/** Test hook: the next `exec` of this tool throws this message, as if PayPal had refused. */
-export function failNext(tool: string, message: string): void {
-  s.fail.set(tool, message);
-}
+export const cancelUrlOf = (orderId: string): string | undefined => s.orders.get(orderId)?.cancelUrl;
 
+// ponytail: request ids are ignored, so a repeated capture or refund throws where PayPal would replay its first answer.
+// Enough for one settlement per purchase; remember the ids here if retries are ever tested against the fake.
 export const fakeBackend: Backend = {
-  async exec(tool: string, args: Args) {
-    const planned = s.fail.get(tool);
-    if (planned) {
-      s.fail.delete(tool);
-      throw new Error(planned);
-    }
-    const sub = () => need(s.subs.get(String(args.subscription_id)));
-    const invoice = () => need(s.invoices.get(String(args.invoice_id)));
-    const move = (from: Sub['status'][], to: Sub['status'], verb: string) => {
-      const x = sub();
-      if (!from.includes(x.status))
-        throw refused(`Invalid subscription status for ${verb} action; subscription status should be ${from.join(' or ').toLowerCase()}.`);
-      x.status = to;
-      return tool === 'cancel_subscription' ? '' : { success: true, subscription_id: x.id }; // PayPal answers 204 with no body
-    };
-
-    switch (tool) {
-      case 'show_subscription_details':
-        return { ...sub() }; // copies, so an earlier answer does not change when the object does
-      case 'suspend_subscription':
-        return move(['ACTIVE'], 'SUSPENDED', 'suspend');
-      case 'activate_subscription':
-        return move(['SUSPENDED'], 'ACTIVE', 'activate');
-      case 'cancel_subscription':
-        return move(['ACTIVE', 'SUSPENDED'], 'CANCELLED', 'cancel');
-      case 'create_subscription': {
-        const id = `I-${rid(12)}`;
-        const created: Sub = {
-          id,
-          status: 'APPROVAL_PENDING',
-          plan_id: String(args.plan_id),
-          subscriber: args.subscriber,
-          // A local page plays PayPal's approval screen and sends the browser back, the way PayPal does.
-          links: [{ href: `/api/dev/approve?id=${id}&back=${encodeURIComponent(backPath(args))}`, rel: 'approve', method: 'GET' }],
-        };
-        s.subs.set(id, created);
-        return { ...created };
-      }
-      case 'get_order': {
-        const cap = need([...s.captures.values()].find((c) => c.orderId === args.id));
-        return {
-          id: cap.orderId,
-          status: 'COMPLETED',
-          purchase_units: [{ payments: { captures: [{ id: cap.id, status: captureStatus(cap), amount: usd(cap.cents) }] } }],
-        };
-      }
-      case 'create_refund': {
-        const cap = need(s.captures.get(String(args.capture_id)));
-        const left = cap.cents - cap.refunded;
-        const value = (args.amount as { value?: string } | undefined)?.value;
-        const cents = value === undefined ? left : toCents(value);
-        if (left <= 0) throw refused('The capture has already been fully refunded.');
-        if (!(cents > 0 && cents <= left))
-          throw refused('The refund amount must be less than or equal to the capture amount that has not yet been refunded.');
-        cap.refunded += cents;
-        const refund = { id: rid(17), status: 'COMPLETED', amount: usd(cents) };
-        s.refunds.set(refund.id, refund);
-        return refund;
-      }
-      case 'get_refund':
-        return need(s.refunds.get(String(args.refund_id)));
-      case 'get_invoice':
-        return { ...invoice() };
-      case 'cancel_invoice_auto_reminder':
-        return { success: true, invoice_id: invoice().id };
-      case 'cancel_sent_invoice': {
-        const inv = invoice();
-        if (inv.status !== 'SENT') throw refused('Invoice is already cancelled.');
-        inv.status = 'CANCELLED';
-        return { success: true, invoice_id: inv.id };
-      }
-      case 'generate_invoice_qr_code':
-        invoice();
-        return 'FAKE-QR-CODE'; // PayPal returns the PNG as text
-      default:
-        throw new Error(`Invalid method: ${tool}`);
-    }
+  async createOrder({ amount, returnUrl, cancelUrl }) {
+    trip('createOrder');
+    const orderId = rid();
+    s.orders.set(orderId, { view: { status: 'PAYER_ACTION_REQUIRED', amount }, returnUrl, cancelUrl });
+    // A local page plays PayPal's approval screen. A path, so it works on whatever port the app runs on.
+    return { orderId, approveUrl: `/api/dev/paypal?order=${orderId}` };
   },
 
-  async seedSubscription({ payerName, payerEmail }) {
-    const sub: Sub = { id: `I-${rid(12)}`, status: 'ACTIVE', plan_id: `P-${rid(24)}`, subscriber: person(payerName, payerEmail) };
-    s.subs.set(sub.id, sub);
-    return { paypalId: sub.id, planId: sub.plan_id };
+  async getOrder(orderId) {
+    trip('getOrder');
+    return { ...order(orderId).view }; // a copy, so an earlier answer does not change when the order does
   },
 
-  async seedCharge({ amount }) {
-    const cap: Capture = { id: rid(17), orderId: rid(17), cents: toCents(amount), refunded: 0 };
-    s.captures.set(cap.id, cap);
-    return { captureId: cap.id, orderId: cap.orderId };
+  async authorizeOrder(orderId) {
+    trip('authorizeOrder');
+    const v = order(orderId).view;
+    if (v.status === 'PAYER_ACTION_REQUIRED') throw refused('Payer has not yet approved the Order for payment.');
+    // A repeat answers with the same authorization, as PayPal does for the fixed request id "authorize-<orderId>".
+    if (v.status === 'APPROVED') Object.assign(v, { status: 'COMPLETED', authorizationId: rid(), authorizationStatus: 'CREATED' });
+    return { authorizationId: v.authorizationId!, status: v.authorizationStatus! };
   },
 
-  async seedInvoice({ amount, recipientName, recipientEmail }) {
-    const id = `INV2-${rid(4)}-${rid(4)}-${rid(4)}-${rid(4)}`;
-    s.invoices.set(id, {
-      id,
-      status: 'SENT',
-      detail: { currency_code: 'USD', metadata: { recipient_view_url: `https://example.com/fake-paypal/invoice/${id}` } },
-      amount: { currency_code: 'USD', value: amount },
-      primary_recipients: [{ billing_info: person(recipientName, recipientEmail) }],
-    });
-    return { invoiceId: id };
+  async captureAuthorization(authorizationId) {
+    trip('captureAuthorization');
+    const v = holding('authorizationId', authorizationId);
+    if (v.authorizationStatus === 'VOIDED') throw refused('A voided authorization cannot be captured or reauthorized.');
+    if (v.authorizationStatus === 'CAPTURED') throw refused('Authorization has already been captured.');
+    Object.assign(v, { authorizationStatus: 'CAPTURED', captureId: rid(), captureStatus: 'COMPLETED' });
+    return { captureId: v.captureId!, status: v.captureStatus! };
+  },
+
+  async voidAuthorization(authorizationId) {
+    trip('voidAuthorization');
+    const v = holding('authorizationId', authorizationId);
+    if (v.authorizationStatus === 'VOIDED') throw refused('Authorization has been previously voided and hence cannot be voided again.');
+    if (v.authorizationStatus === 'CAPTURED') throw refused('Authorization has been previously captured and hence cannot be voided.');
+    v.authorizationStatus = 'VOIDED';
+  },
+
+  async refundCapture(captureId) {
+    trip('refundCapture');
+    const v = holding('captureId', captureId);
+    if (v.captureStatus === 'REFUNDED') throw refused('The capture has already been fully refunded.');
+    v.captureStatus = 'REFUNDED';
+    return { refundId: rid(), status: 'COMPLETED' };
   },
 };

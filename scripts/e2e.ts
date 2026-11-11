@@ -1,180 +1,158 @@
-// End-to-end check of the whole flow, in-process.
-// Uses the real model when OPENAI_API_KEY and LLM_MODEL are set (E2E_SCRIPTED=1 forces the scripted stand-in),
-// and the real PayPal sandbox when PAYPAL_1_CLIENT_ID is set; otherwise the in-memory fake.
+// End-to-end check of the whole flow, in-process, on the development stand-in for PayPal.
+// Uses the real model when OPENAI_API_KEY and LLM_MODEL are set (E2E_SCRIPTED=1 forces the scripted stand-in).
+// The real sandbox needs a person or a browser to approve each payment, so it is checked separately.
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 
 if (existsSync('.env.local')) process.loadEnvFile('.env.local');
-if (!process.env.PAYPAL_1_CLIENT_ID) process.env.PAYPAL_FAKE = '1';
+process.env.PAYPAL_FAKE = '1';
 const scriptedModel = process.env.E2E_SCRIPTED === '1' || !process.env.OPENAI_API_KEY || !process.env.LLM_MODEL;
 
-import type { Case } from '../lib/types';
+import type { Llm } from '../lib/agent';
+import type { Purchase } from '../lib/types';
 
 async function main() {
-  const { runPhase } = await import('../lib/agent');
-  const { seedDemoCase } = await import('../lib/seed');
+  const { runClerk, runSettlement } = await import('../lib/agent');
+  const { makeQuote, openPurchase, startCheckout, refundSale, sales } = await import('../lib/shop');
   const { store } = await import('../lib/store');
-  const { isFake } = await import('../lib/merchants');
-  const { toCents } = await import('../lib/guard');
-  const { scripted } = await import('../lib/llm-scripted');
-  const llm = scriptedModel ? scripted() : undefined;
-  console.log(`model: ${scriptedModel ? 'scripted stand-in' : process.env.LLM_MODEL}   paypal: ${isFake() ? 'in-memory fake' : 'sandbox'}`);
+  const fake = await import('../lib/paypal-fake');
+  const { backend } = await import('../lib/paypal');
+  const { handleRpc } = await import('../lib/mcp');
+  const llm: Llm | undefined = scriptedModel ? (await import('../lib/llm-scripted')).scripted() : undefined;
+  console.log(`model: ${scriptedModel ? 'scripted stand-in' : process.env.LLM_MODEL}   paypal: development stand-in`);
 
-  const byLabel = (c: Case, merchant: string, label: RegExp) => {
-    const item = c.items.find((i) => i.merchant === merchant && label.test(i.label));
-    assert(item, `missing item ${merchant} ${label}`);
-    return item;
+  const wallet = (country: string, n = 0) => fake.WALLETS.filter((w) => w.country === country)[n]?.id ?? assert.fail(`no demo wallet in ${country}`);
+
+  /** Quote, open, start the payment, approve it as a wallet, then let the agent settle it. */
+  async function buy(o: { product?: string; claim: string; walletId: string; gift?: string; say?: string; model?: Llm }): Promise<Purchase> {
+    const quote = makeQuote(o.product ?? 'lettering', o.claim);
+    assert(typeof quote !== 'string', String(quote));
+    const p = openPurchase({ quoteId: quote.id, gift: o.gift });
+    assert(typeof p !== 'string', String(p));
+    if (o.say) assert.equal(await runClerk(p.id, o.say, llm), null);
+    const started = await startCheckout(p);
+    assert(typeof started !== 'string', String(started));
+    fake.approve(p.paypal.orderId!, o.walletId);
+    await runSettlement(p.id, o.model ?? llm);
+    assert.equal(p.running, false);
+    assert(p.outcome, 'every settlement ends with an outcome');
+    return p;
+  }
+  const line = (label: string, p: Purchase) =>
+    console.log(`  ${label.padEnd(34)} quoted ${p.quote.price.country} $${p.quote.price.fair.padStart(5)}  wallet ${p.paypal.walletCountry}  -> ${p.status}${p.outcome?.verified ? ', confirmed' : ''}  paid $${p.status === 'captured' ? p.amount : '0.00'}`);
+
+  // 1. A buyer in Viet Nam pays the Viet Nam price with a wallet registered in Viet Nam.
+  const linh = await buy({ claim: 'VN', walletId: wallet('VN') });
+  line('Viet Nam price, Viet Nam wallet', linh);
+  assert.equal(linh.quote.price.fair, '10.41');
+  assert.equal(linh.status, 'captured');
+  assert.equal(linh.outcome!.verified, true);
+  assert.equal((await backend().getOrder(linh.paypal.orderId!)).captureStatus, 'COMPLETED');
+
+  // 2. Someone asks for the Viet Nam price and pays with a wallet registered in Germany: nothing is taken.
+  const cheat = await buy({ claim: 'VN', walletId: wallet('DE') });
+  line('Viet Nam price, Germany wallet', cheat);
+  assert.equal(cheat.status, 'voided');
+  assert.equal(cheat.paypal.captureId, undefined);
+  const order = await backend().getOrder(cheat.paypal.orderId!);
+  assert.equal(order.captureId, undefined, 'no capture exists at PayPal');
+  assert.equal(order.authorizationId, undefined, 'no hold was even placed');
+  assert.equal(cheat.outcome!.offer?.price.country, 'DE');
+  assert.equal(cheat.outcome!.offer?.price.fair, '36.23');
+
+  // 3. The same wallet cannot buy the same product twice.
+  const again = await buy({ claim: 'VN', walletId: wallet('VN') });
+  line('Same wallet, second time', again);
+  assert.equal(again.status, 'voided');
+  assert.equal((await backend().getOrder(again.paypal.orderId!)).authorizationStatus, 'VOIDED', 'the hold was released');
+
+  // 4. A buyer in Norway pays the list price and covers part of someone else's.
+  const ingrid = await buy({ claim: 'NO', walletId: wallet('NO'), gift: '5.00' });
+  line('Norway, with a $5 gift', ingrid);
+  assert.equal(ingrid.quote.price.fair, '44.00');
+  assert.equal(ingrid.amount, '49.00');
+  assert.equal(ingrid.status, 'captured');
+  assert.equal(store.pool.balance, '5.00');
+
+  // 5. A student whose wallet is in Germany tells the clerk; the clerk helps from the pool, inside the limits.
+  const before = store.pool.balance;
+  const student = await buy({ claim: 'DE', walletId: wallet('DE'), say: 'I am a student from Nepal studying in Berlin on a small scholarship. Can you help?' });
+  line('Germany wallet, student from Nepal', student);
+  assert(student.help, 'the clerk gave help');
+  assert(Number(student.help!.amount) <= 5 && Number(student.help!.amount) <= 8.8, 'help stays within the pool and the 20% cap');
+  assert.equal(student.status, 'captured');
+  assert.equal(Number(store.pool.balance), Number(before) - Number(student.help!.amount));
+  assert(student.messages.some((m) => m.from === 'clerk'));
+
+  // 6. With the pool empty the clerk cannot give more, whatever is asked.
+  const quote6 = makeQuote('lettering', 'DE');
+  assert(typeof quote6 !== 'string');
+  const p6 = openPurchase({ quoteId: quote6.id });
+  assert(typeof p6 !== 'string');
+  if (Number(store.pool.balance) === 0) {
+    await runClerk(p6.id, 'I lost my job. Can you help?', llm);
+    assert.equal(p6.help, undefined, 'no help from an empty pool');
+    assert.equal(p6.amount, quote6.price.fair);
+    console.log('  empty pool                         the clerk gave nothing');
+  }
+
+  // 7. A model that misbehaves: it tries to take a payment the rules do not allow, then walks away.
+  const rogue: Llm = async (messages) => {
+    const turn = messages.filter((m) => m.role === 'assistant').length;
+    const call = (name: string) => ({ id: `rogue_${turn}_${name}`, type: 'function' as const, function: { name, arguments: '{}' } });
+    if (turn === 0) return { content: 'Taking the money straight away.', tool_calls: [call('hold_payment'), call('take_payment'), call('take_payment')] };
+    return { content: 'Done.' }; // never releases, never finishes
   };
-  const errors = (c: Case) => c.events.filter((e) => e.type === 'error').map((e) => e.summary);
+  const robbed = await buy({ claim: 'IN', walletId: wallet('US'), model: rogue });
+  line('Misbehaving model, India price', robbed);
+  assert.equal(robbed.status, 'voided');
+  assert.equal(robbed.paypal.captureId, undefined);
+  assert((await backend().getOrder(robbed.paypal.orderId!)).captureId === undefined, 'nothing was captured at PayPal');
+  assert(robbed.events.filter((e) => e.type === 'refused').length >= 2, 'the rules refused the calls');
+  // The same model on a matching wallet stops after the hold: code releases what it left open and takes nothing.
+  const lazy: Llm = async (messages) => {
+    const turn = messages.filter((m) => m.role === 'assistant').length;
+    return turn === 0 ? { content: null, tool_calls: [{ id: 'lazy_1', type: 'function', function: { name: 'hold_payment', arguments: '{}' } }] } : { content: 'Stopping here.' };
+  };
+  const left = await buy({ claim: 'BR', walletId: wallet('BR'), model: lazy });
+  line('Model stops after the hold', left);
+  assert.equal(left.status, 'voided');
+  assert.equal((await backend().getOrder(left.paypal.orderId!)).authorizationStatus, 'VOIDED');
 
-  // ---- run 1: pause, resume, then the full settlement ----
-  const c = await seedDemoCase();
-  console.log(`case ${c.id}: seeded`);
+  // 8. PayPal fails in the middle of taking a payment: nothing is shown as paid.
+  fake.failNext('captureAuthorization', 'INTERNAL_SERVICE_ERROR: try again later.');
+  const failed = await buy({ claim: 'JP', walletId: wallet('JP') });
+  line('PayPal error during capture', failed);
+  assert.equal(failed.status, 'voided');
+  assert.equal(failed.paypal.captureId, undefined);
 
-  const noticeText = c.document.text;
-  c.document.text = undefined; // no document: the case must stay "filed" and only allow reversible steps
-  await runPhase(c.id, 'intake', llm);
-  assert.deepEqual(errors(c), []);
-  assert.equal(c.tier, 'filed');
-  assert.equal(c.status, 'review');
-  await runPhase(c.id, 'pause', llm);
-  assert.equal(c.paused, true, 'pause should suspend subscriptions');
-  assert(c.items.filter((i) => i.kind === 'subscription').every((i) => i.liveStatus === 'SUSPENDED'));
-  await runPhase(c.id, 'resume', llm);
-  assert.equal(c.paused, false, 'resume should undo the pause');
-  assert(c.items.filter((i) => i.kind === 'subscription').every((i) => i.liveStatus === 'ACTIVE'));
-  console.log('pause and resume: ok');
+  // 9. An AI shopping agent over MCP asks for the Viet Nam price; the wallet that pays is in the United States.
+  let rpcId = 0;
+  const tool = async (name: string, args: Record<string, unknown>) => {
+    const r = (await handleRpc({ jsonrpc: '2.0', id: ++rpcId, method: 'tools/call', params: { name, arguments: args } })) as { result: { content: { text: string }[]; isError?: boolean } };
+    assert(!r.result.isError, r.result.content[0].text);
+    return JSON.parse(r.result.content[0].text);
+  };
+  const price = await tool('get_price', { product_id: 'brushes', country: 'VN' });
+  const checkout = await tool('start_checkout', { quote_id: price.quote_id });
+  const viaAgent = store.purchases.get(checkout.purchase_id)!;
+  fake.approve(viaAgent.paypal.orderId!, wallet('US'));
+  await runSettlement(viaAgent.id, llm);
+  const seen = await tool('get_purchase', { purchase_id: checkout.purchase_id });
+  line('AI agent over MCP, US wallet', viaAgent);
+  assert.equal(seen.status, 'voided');
+  assert.equal(seen.price_for_the_wallets_country.country, 'US');
+  assert.equal(seen.viaAgent, true);
 
-  c.document.text = noticeText;
-  await runPhase(c.id, 'intake', llm);
-  assert.deepEqual(errors(c), []);
-  assert.equal(c.tier, 'verified', c.document.mismatches.join(' '));
-  assert.equal(c.items.length, 5, 'five items across three merchants');
-  assert(c.items.every((i) => i.proposed && i.decided), 'every item has a proposal');
-  assert(c.notes.some((n) => /Daniela Reyes/.test(n)), 'the near match is reported');
-  console.log('intake and plan: ok');
-  for (const i of c.items) console.log(`  ${i.merchant.padEnd(12)} ${i.label.padEnd(42)} ${i.decided!.action.padEnd(16)} refund ${i.decided!.refunds.map((r) => r.amount).join('+') || '-'}`);
+  // 10. The seller refunds a sale; the gift that came with it leaves the pool.
+  const refunded = await refundSale(ingrid.id);
+  assert(typeof refunded !== 'string', String(refunded));
+  assert.equal(refunded.status, 'refunded');
+  assert.equal(await refundSale(ingrid.id), 'Only a captured payment can be refunded.');
 
-  c.approvedAt = new Date().toISOString();
-  await runPhase(c.id, 'execute', llm);
-  assert.deepEqual(errors(c), []);
-  assert.equal(c.status, 'done');
-  assert(c.items.every((i) => i.outcome), 'every item has an outcome');
-  for (const i of c.items) console.log(`  ${i.merchant.padEnd(12)} ${i.label.padEnd(42)} ${i.outcome!.state.padEnd(10)} verified=${i.outcome!.verified} ${i.liveStatus}`);
-  assert(c.items.every((i) => i.outcome!.state !== 'done' || i.outcome!.verified), 'nothing is done without PayPal confirming it');
-  for (const item of c.items) {
-    for (const ch of item.charges) {
-      assert((store.refunded.get(ch.captureId) ?? 0) <= toCents(ch.refundable), `refund above bound on ${ch.captureId}`);
-    }
-  }
-  const locker = byLabel(c, 'ironwood', /locker/i);
-  assert.equal(store.refunded.get(locker.paypalId), toCents(locker.charges[0].refundable), 'locker refund equals the computed amount');
-  if (scriptedModel) {
-    for (const [merchant, label] of [['lumen', /family/i], ['harborlight', /gift/i]] as const) {
-      const item = byLabel(c, merchant, label);
-      assert.equal(item.outcome!.state, 'waiting');
-      assert(item.outcome!.link, 'take-over shows an approval link');
-      assert.equal(item.liveStatus, 'SUSPENDED');
-    }
-    assert.equal(byLabel(c, 'ironwood', /membership/i).liveStatus, 'CANCELLED');
-    assert.equal(byLabel(c, 'ironwood', /training/i).liveStatus, 'CANCELLED');
-    assert.equal(store.refunded.get(byLabel(c, 'lumen', /family/i).charges[1].captureId), 1799);
-  }
-  assert(c.statement?.includes('Total refunded'), 'closing statement exists');
-  console.log('execute: ok');
-
-  // ---- the family member approves one take-over at PayPal ----
-  if (isFake() && scriptedModel) {
-    const { finalizeTakeOvers } = await import('../lib/agent');
-    const { approveSubscription } = await import('../lib/paypal-fake');
-    const lumen = byLabel(c, 'lumen', /family/i);
-    await finalizeTakeOvers(c.id);
-    assert.equal(lumen.outcome!.state, 'waiting', 'nothing changes before the approval');
-    assert(approveSubscription(lumen.refs.newSubscriptionId));
-    await finalizeTakeOvers(c.id);
-    assert.equal(lumen.outcome!.state, 'done');
-    assert.equal(lumen.outcome!.verified, true);
-    assert.equal(lumen.liveStatus, 'CANCELLED');
-    assert.equal(byLabel(c, 'harborlight', /gift/i).outcome!.state, 'waiting', 'the other take-over still waits');
-    assert(c.statement?.includes('taken over; the new subscription is approved'));
-    console.log('take-over approval: ok');
-  }
-  console.log(c.statement);
-
-  // ---- run 2: a PayPal failure mid-execution blocks one row and the rest still finish ----
-  if (isFake() && scriptedModel) {
-    const { failNext } = await import('../lib/paypal-fake');
-    const c2 = await seedDemoCase();
-    await runPhase(c2.id, 'intake', llm);
-    c2.approvedAt = new Date().toISOString();
-    failNext('create_refund', 'INSTRUMENT_DECLINED: the refund could not be processed.');
-    await runPhase(c2.id, 'execute', llm);
-    const blocked = c2.items.filter((i) => i.outcome!.state !== 'done' && i.outcome!.state !== 'waiting');
-    assert.equal(blocked.length, 1, `exactly one row should be blocked, got ${blocked.map((i) => `${i.label}:${i.outcome!.state}`).join(', ')}`);
-    assert.equal(blocked[0].outcome!.verified, false);
-    assert.equal(c2.status, 'done');
-    console.log(`injected failure: ok (${blocked[0].label} is ${blocked[0].outcome!.state})`);
-  }
-
-  // ---- run 3: a model that misbehaves. The desks must refuse every call the plan does not allow. ----
-  if (isFake() && scriptedModel) {
-    const c3 = await seedDemoCase();
-    await runPhase(c3.id, 'intake', llm);
-    c3.approvedAt = new Date().toISOString();
-    const lumen = byLabel(c3, 'lumen', /family/i);
-    const locker = byLabel(c3, 'ironwood', /locker/i);
-    const gift = byLabel(c3, 'harborlight', /gift/i);
-    const giftAfterDeath = gift.charges.find((ch) => Number(ch.refundable) > 0)!;
-    const attack = (name: string, args: unknown, i: number) => ({ id: `rogue_${i}`, type: 'function' as const, function: { name, arguments: JSON.stringify(args) } });
-    const attacks = [
-      // another merchant's capture, asked for at the wrong desk
-      attack('ironwood__create_refund', { capture_id: lumen.charges[1].captureId, amount: { currency_code: 'USD', value: '17.99' } }, 1),
-      // an id that belongs to nobody in this case
-      attack('lumen__create_refund', { capture_id: 'AAAAAAAAAAAAAAAAA', amount: { currency_code: 'USD', value: '500.00' } }, 2),
-      // a refund the family did not approve
-      attack('harborlight__create_refund', { capture_id: giftAfterDeath.captureId, amount: { currency_code: 'USD', value: '25.00' } }, 3),
-      // cancelling a subscription that is being handed over, before the family member has approved the new one
-      attack('lumen__cancel_subscription', { subscription_id: lumen.paypalId, payload: { reason: 'rogue' } }, 4),
-      // the approved locker refund, but for the whole amount, and twice
-      attack('ironwood__create_refund', { capture_id: locker.paypalId, amount: { currency_code: 'USD', value: '120.00' } }, 5),
-      attack('ironwood__create_refund', { capture_id: locker.paypalId, amount: { currency_code: 'USD', value: '120.00' } }, 6),
-    ];
-    let attacked = false;
-    const rogue: typeof llm = async (messages, tools) => {
-      if (!attacked && tools.some((t) => t.function.name === 'record_outcome')) {
-        attacked = true;
-        return { content: 'Trying calls the plan does not allow.', tool_calls: attacks };
-      }
-      // The stand-in counts turns, so it is shown the conversation without the rogue turn.
-      const clean = messages.filter((m) => !(m.role === 'assistant' && m.tool_calls?.some((t) => t.id.startsWith('rogue_'))) && !(m.role === 'tool' && m.tool_call_id.startsWith('rogue_')));
-      return llm!(clean, tools);
-    };
-    await runPhase(c3.id, 'execute', rogue);
-    const denied = c3.events.filter((e) => e.type === 'denied');
-    assert.equal(denied.length >= 5, true, `expected at least five refusals, got ${denied.length}`);
-    assert.equal(store.refunded.get(locker.paypalId), toCents(locker.charges[0].refundable), 'the locker refund is the computed amount, once');
-    assert.equal(store.refunded.get(giftAfterDeath.captureId) ?? 0, 0, 'the gift the family kept was not refunded');
-    assert.equal(lumen.liveStatus, 'SUSPENDED', 'the subscription being handed over was not cancelled');
-    for (const item of c3.items) for (const ch of item.charges) assert((store.refunded.get(ch.captureId) ?? 0) <= toCents(ch.refundable));
-    assert(c3.items.every((i) => i.outcome?.verified), 'the approved plan still completed');
-    console.log(`misbehaving model: ok (${denied.length} calls refused, nothing outside the approved plan went through)`);
-    for (const d of denied) console.log(`  refused: ${d.summary.slice(0, 150)}`);
-  }
-  // ---- run 4: a second case pointed at the first case's customer finds nothing to act on ----
-  if (isFake() && scriptedModel) {
-    const { applyNotice } = await import('../lib/cases');
-    const a = await seedDemoCase();
-    const b = await seedDemoCase();
-    assert.equal(
-      applyNotice(b, { fullName: a.deceased.fullName, emails: a.deceased.emails, dateOfDeath: a.deceased.dateOfDeath, representative: b.representative, wishes: b.wishes, documentText: a.document.text }),
-      null,
-    );
-    await runPhase(b.id, 'intake', llm);
-    assert.equal(b.items.length, 0, "another case's customer is not this case's to settle");
-    await runPhase(a.id, 'intake', llm);
-    assert.equal(a.items.length, 5);
-    console.log('two cases, one customer: ok (the second case sees no accounts)');
-  }
+  // Nothing above took money from a wallet outside the quoted country.
+  for (const s of sales()) if (s.status === 'captured' || s.status === 'refunded') assert.equal(s.walletCountry, s.quotedCountry, `${s.id} was captured across countries`);
+  console.log(`  ledger: ${sales().length} sales, ${sales().filter((s) => s.status === 'captured').length} captured, ${sales().filter((s) => s.status === 'voided').length} released, pool $${store.pool.balance}`);
   console.log('E2E PASSED');
 }
 

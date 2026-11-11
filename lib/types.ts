@@ -1,160 +1,125 @@
-export type MerchantSlug = 'lumen' | 'ironwood' | 'harborlight';
-export type Tier = 'filed' | 'verified';
-export type Phase = 'intake' | 'plan' | 'pause' | 'resume' | 'execute';
-export type CaseStatus = 'notice' | 'planning' | 'review' | 'executing' | 'done';
-export type ItemKind = 'subscription' | 'charge' | 'invoice';
-export type Action = 'close' | 'take_over' | 'pause' | 'refund' | 'leave' | 'waive' | 'pay_from_estate';
+/** ISO 3166-1 alpha-2, the form PayPal reports, e.g. "VN". */
+export type CountryCode = string;
 
-export const ACTIONS_BY_KIND: Record<ItemKind, Action[]> = {
-  subscription: ['close', 'take_over', 'pause'],
-  charge: ['refund', 'leave'],
-  invoice: ['waive', 'pay_from_estate'],
-};
-
-export interface Policy {
-  prorataCurrentPeriod: boolean; // refund the unused share of a period that contains the date of death
-  waiveUndeliveredInvoices: boolean;
-  allowTakeOver: boolean;
-  summary: string; // plain-language text shown to the agent and in the UI
-}
-export interface Merchant {
-  slug: MerchantSlug;
-  name: string;
-  blurb: string;
-  policy: Policy;
-}
-
-/** Dates are YYYY-MM-DD. `end` is exclusive. */
-export interface Period {
-  start: string;
-  end: string;
-}
-/** Money is a decimal string in USD, e.g. "17.99". */
-export interface Charge {
-  captureId: string;
-  orderId?: string;
-  amount: string;
-  description: string;
-  period: Period;
-}
-
-/** One thing a merchant has on file for a customer. */
-export interface RecordItem {
-  id: string; // merchant-local and unique per seeded run, e.g. "lumen-1-ab12"
-  kind: ItemKind;
-  label: string;
-  paypalId: string; // subscription id | capture id | invoice id
-  planId?: string; // subscriptions: needed for take-over
-  amount: string;
-  cadence?: 'month' | 'year';
-  charges: Charge[]; // subscription: period charges the merchant recorded; charge: one entry; invoice: none
-}
-export interface CustomerRecord {
-  /** Demo records are created for one case and only that case may act on them. */
-  caseId?: string;
-  customerId: string;
-  fullName: string;
-  email: string;
-  items: RecordItem[];
-}
-
-export interface RefundLine {
-  captureId: string;
-  amount: string;
-}
-export interface Decision {
-  action: Action;
-  refunds: RefundLine[];
-}
-export interface Outcome {
-  state: 'done' | 'waiting' | 'blocked' | 'failed' | 'not_completed';
-  refs: Record<string, string>; // e.g. { refundId, newSubscriptionId }
-  verified: boolean; // set by code after re-reading PayPal, never by the model
-  note: string;
-  link?: string;
-}
-export interface Item {
+/** Money is a decimal string in USD, e.g. "44.00". Arithmetic happens in integer cents. */
+export interface Product {
   id: string;
-  merchant: MerchantSlug;
-  kind: ItemKind;
-  label: string;
-  paypalId: string;
-  planId?: string;
-  liveStatus: string;
-  amount: string;
-  cadence?: 'month' | 'year';
-  charges: (Charge & { refundable: string })[]; // refundable is computed by code
-  /** Ids and links taken from PayPal responses by the desk, never from the model.
-   *  Keys: `refund:<captureId>`, `newSubscriptionId`, `approveLink`, `payLink`. */
-  refs: Record<string, string>;
-  proposed?: Decision & { reason: string; question?: string };
-  decided?: Decision;
-  outcome?: Outcome;
+  title: string;
+  blurb: string;
+  listPrice: string;
+}
+
+/** What the seller decides once. Code applies it; no model can change it. */
+export interface Rules {
+  referenceCountry: CountryCode; // the market the list price was set for
+  dial: number; // 0..100. 0 = the same dollars everywhere, 100 = the same hours everywhere
+  floorPercent: number; // never below this share of the list price
+  help: { maxPercent: number; perMonth: number }; // how far the clerk may lower a price from the pool, and how often
+}
+
+/** One product's price for one country, worked out by code from World Bank data and the seller's rules. */
+export interface Price {
+  country: CountryCode;
+  countryName: string;
+  year: number; // year of the income figure
+  incomePerHour: string; // average income per working hour there, USD
+  list: string;
+  fair: string;
+  hoursAtList: number; // hours of average income the list price costs there, one decimal
+  hoursAtFair: number;
+  limitedBy: 'floor' | 'list' | null; // which of the seller's limits decided the fair price, if any
+}
+
+export interface Quote {
+  id: string;
+  productId: string;
+  price: Price;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export type PurchaseStatus = 'open' | 'approving' | 'settling' | 'captured' | 'voided' | 'refunded';
+
+export interface ChatMessage {
+  from: 'buyer' | 'clerk';
+  text: string;
+  ts: string;
 }
 
 export interface Event {
   ts: string;
-  actor: 'agent' | `desk:${MerchantSlug}` | 'guard' | 'family' | 'system';
-  type: 'note' | 'tool' | 'denied' | 'plan' | 'outcome' | 'status' | 'error';
+  actor: 'clerk' | 'agent' | 'desk' | 'rules' | 'buyer' | 'system';
+  type: 'note' | 'tool' | 'refused' | 'outcome' | 'status' | 'error';
   summary: string;
   detail?: unknown;
 }
 
-export interface Case {
+export interface Purchase {
   id: string;
   createdAt: string;
-  demo: boolean;
-  tier: Tier;
-  status: CaseStatus;
-  running: Phase | null;
-  paused: boolean; // true after a pause phase, false again after resume
-  representative: { name: string; relation: string; email: string };
-  deceased: { fullName: string; emails: string[]; dateOfDeath: string };
-  wishes: string;
-  language: string;
-  document: {
-    dataUrl?: string;
-    text?: string;
-    extracted?: { fullName?: string; dateOfDeath?: string; kind?: string };
-    mismatches: string[];
+  productId: string;
+  quote: Quote;
+  buyer: { language: string; viaAgent: boolean };
+  gift: string; // "cover an hour for someone"; "0.00" when none
+  help?: { amount: string; reason: string }; // granted by the clerk, paid from the pool
+  amount: string; // what PayPal is asked to authorise: fair price, minus help, plus gift
+  status: PurchaseStatus;
+  running: boolean; // an agent is working on it right now
+  paypal: {
+    orderId?: string;
+    approveUrl?: string;
+    authorizationId?: string;
+    captureId?: string;
+    refundId?: string;
+    payerId?: string;
+    walletCountry?: CountryCode; // as PayPal reported it, never as the buyer said
   };
-  items: Item[];
-  notes: string[]; // agent remarks for the family, e.g. a near match it left out
-  approvedAt?: string;
-  statement?: string;
-  statementNote?: string; // the agent's covering note, kept so the statement can be rebuilt
+  outcome?: {
+    captured: boolean;
+    verified: boolean; // set by code after reading the capture or the void back from PayPal
+    text: string; // what the buyer is told, in their language
+    offer?: Quote; // after a mismatch: the price for the wallet's country
+  };
+  messages: ChatMessage[];
   events: Event[];
 }
 
-export interface LedgerEntry {
+export interface PoolEntry {
   ts: string;
-  caseId: string;
-  tool: string;
-  target: string;
-  ok: boolean;
-  denied: boolean;
-  summary: string;
-  refs: Record<string, string>;
+  purchaseId: string;
+  kind: 'gift' | 'help';
+  amount: string;
+}
+export interface Pool {
+  balance: string;
+  entries: PoolEntry[];
+}
+
+/** What PayPal says about an order. `payerCountry` is the proof of residence. */
+export interface OrderView {
+  status: string; // CREATED | PAYER_ACTION_REQUIRED | APPROVED | COMPLETED | VOIDED ...
+  amount?: string;
+  payerId?: string;
+  payerCountry?: CountryCode;
+  authorizationId?: string;
+  authorizationStatus?: string; // CREATED | CAPTURED | VOIDED ...
+  captureId?: string;
+  captureStatus?: string;
+}
+
+/** PayPal for the seller's account. Every method throws an Error carrying PayPal's message on failure. */
+export interface Backend {
+  createOrder(o: { amount: string; description: string; purchaseId: string; returnUrl: string; cancelUrl: string }): Promise<{ orderId: string; approveUrl: string }>;
+  getOrder(orderId: string): Promise<OrderView>;
+  authorizeOrder(orderId: string): Promise<{ authorizationId: string; status: string }>;
+  captureAuthorization(authorizationId: string, requestId: string): Promise<{ captureId: string; status: string }>;
+  voidAuthorization(authorizationId: string): Promise<void>;
+  refundCapture(captureId: string, requestId: string): Promise<{ refundId: string; status: string }>;
 }
 
 export interface ToolDef {
   name: string;
   description: string;
   parameters: Record<string, unknown>; // JSON schema
-  write: boolean;
 }
-export type ToolResult = { ok: true; data: unknown } | { ok: false; denied: boolean; error: string };
-export interface Desk {
-  slug: MerchantSlug;
-  listTools(phase: Phase): ToolDef[];
-  callTool(name: string, args: Record<string, unknown>, caseId: string): Promise<ToolResult>;
-}
-
-/** A PayPal backend for one merchant. `null` from a seed function means the sandbox cannot do it. */
-export interface Backend {
-  /** Throws an Error carrying PayPal's message on failure. */
-  exec(tool: string, args: Record<string, unknown>, requestId?: string): Promise<unknown>;
-  seedSubscription(o: { label: string; price: string; payerName: string; payerEmail: string }): Promise<{ paypalId: string; planId: string } | null>;
-  seedCharge(o: { label: string; amount: string; payerName: string; payerEmail: string }): Promise<{ captureId: string; orderId: string } | null>;
-  seedInvoice(o: { label: string; amount: string; recipientName: string; recipientEmail: string }): Promise<{ invoiceId: string } | null>;
-}
+export type ToolResult = { ok: true; data: unknown } | { ok: false; refused: boolean; error: string };

@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: handover
+    name: fair-hour
     runtime: node
     plan: free
     buildCommand: npm ci && npm run build
@@ -17,17 +17,9 @@ services:
         sync: false
       - key: LLM_MODEL
         sync: false
-      - key: PAYPAL_1_CLIENT_ID
+      - key: PAYPAL_CLIENT_ID
         sync: false
-      - key: PAYPAL_1_CLIENT_SECRET
+      - key: PAYPAL_CLIENT_SECRET
         sync: false
-      - key: PAYPAL_2_CLIENT_ID
-        sync: false
-      - key: PAYPAL_2_CLIENT_SECRET
-        sync: false
-      - key: PAYPAL_3_CLIENT_ID
-        sync: false
-      - key: PAYPAL_3_CLIENT_SECRET
-        sync: false
-      - key: DEMO_DAILY_LIMIT
-        value: "40"
+      - key: DAILY_RUN_LIMIT
+        value: "400"

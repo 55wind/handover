@@ -1,52 +1,42 @@
-import type { Case, CustomerRecord, Event, LedgerEntry, MerchantSlug } from './types';
+import type { Event, Pool, Purchase, Quote } from './types';
 
-type Listener = (e: Event, c: Case) => void;
+type Listener = (e: Event, p: Purchase) => void;
 
 interface State {
-  cases: Map<string, Case>;
-  records: Map<MerchantSlug, CustomerRecord[]>;
-  ledger: Map<MerchantSlug, LedgerEntry[]>;
-  refunded: Map<string, number>; // capture id -> cents already refunded by Handover
-  done: Map<string, Set<string>>; // case id -> "tool:targetId" already executed
+  purchases: Map<string, Purchase>;
+  quotes: Map<string, Quote>;
+  pool: Pool;
+  bought: Set<string>; // "payerId:productId" for captured purchases
   listeners: Map<string, Set<Listener>>;
-  demo: { day: string; n: number };
-  runs: Map<string, number>; // case id -> agent runs started
+  runs: { day: string; n: number };
 }
 
-// ponytail: all state lives in this process and is lost on restart; move to a database if cases must outlive a deploy.
-const g = globalThis as { __handover?: State };
-const s: State = (g.__handover ??= {
-  cases: new Map(),
-  records: new Map(),
-  ledger: new Map(),
-  refunded: new Map(),
-  done: new Map(),
+// ponytail: all state lives in this process and is lost on restart; move to a database if sales must outlive a deploy.
+const g = globalThis as { __fairHour?: State };
+const s: State = (g.__fairHour ??= {
+  purchases: new Map(),
+  quotes: new Map(),
+  pool: { balance: '0.00', entries: [] },
+  bought: new Set(),
   listeners: new Map(),
-  demo: { day: '', n: 0 },
-  runs: new Map(),
+  runs: { day: '', n: 0 },
 });
 
 export const store = {
-  cases: s.cases,
-  records: s.records,
-  ledger: s.ledger,
-  refunded: s.refunded,
+  purchases: s.purchases,
+  quotes: s.quotes,
+  pool: s.pool,
+  bought: s.bought,
 
-  doneFor(caseId: string): Set<string> {
-    let set = s.done.get(caseId);
-    if (!set) s.done.set(caseId, (set = new Set()));
-    return set;
-  },
-
-  /** Appends the event to the case and notifies anyone streaming it. */
-  emit(caseId: string, e: Omit<Event, 'ts'>): Event {
-    const c = s.cases.get(caseId);
+  /** Appends the event to the purchase and notifies anyone streaming it. */
+  emit(purchaseId: string, e: Omit<Event, 'ts'>): Event {
+    const p = s.purchases.get(purchaseId);
     const event: Event = { ts: new Date().toISOString(), ...e };
-    if (!c) return event;
-    c.events.push(event);
-    for (const fn of s.listeners.get(caseId) ?? []) {
+    if (!p) return event;
+    p.events.push(event);
+    for (const fn of s.listeners.get(purchaseId) ?? []) {
       try {
-        fn(event, c);
+        fn(event, p);
       } catch {
         /* a broken stream must never stop the run that is reporting to it */
       }
@@ -54,46 +44,25 @@ export const store = {
     return event;
   },
 
-  subscribe(caseId: string, fn: Listener): () => void {
-    let set = s.listeners.get(caseId);
-    if (!set) s.listeners.set(caseId, (set = new Set()));
+  subscribe(purchaseId: string, fn: Listener): () => void {
+    let set = s.listeners.get(purchaseId);
+    if (!set) s.listeners.set(purchaseId, (set = new Set()));
     set.add(fn);
     return () => void set.delete(fn);
   },
 
-  log(slug: MerchantSlug, entry: Omit<LedgerEntry, 'ts'>): void {
-    const list = s.ledger.get(slug) ?? [];
-    list.push({ ts: new Date().toISOString(), ...entry });
-    s.ledger.set(slug, list);
-  },
-
-  /** False once this case has used its allowance of agent runs. Every run costs model calls. */
-  takeRunSlot(caseId: string): boolean {
-    s.runs ??= new Map(); // state created before this field existed
-    const n = s.runs.get(caseId) ?? 0;
-    if (n >= 12) return false;
-    s.runs.set(caseId, n + 1);
-    return true;
-  },
-
-  /** False once today's demo allowance is used up. */
-  takeDemoSlot(): boolean {
+  /** False once today's allowance of model runs is used up. Every clerk reply and settlement costs model calls. */
+  takeRun(): boolean {
     const day = new Date().toISOString().slice(0, 10);
-    if (s.demo.day !== day) s.demo = { day, n: 0 };
-    if (s.demo.n >= Number(process.env.DEMO_DAILY_LIMIT ?? 40)) return false;
-    s.demo.n++;
+    if (s.runs.day !== day) s.runs = { day, n: 0 };
+    if (s.runs.n >= Number(process.env.DAILY_RUN_LIMIT ?? 400)) return false;
+    s.runs.n++;
     return true;
   },
 };
 
-/** The case as sent to the browser: without the uploaded image, and without raw PayPal payloads in event details. */
-export function publicCase(c: Case): Case {
-  const slim = (detail: unknown) =>
-    detail && typeof detail === 'object' && 'result' in detail ? { ...detail, result: undefined } : detail;
-  return {
-    ...c,
-    document: { ...c.document, dataUrl: undefined },
-    events: c.events.map((e) => ({ ...e, detail: slim(e.detail) })),
-  };
+/** The purchase as sent to a browser: without raw PayPal payloads in event details. */
+export function publicPurchase(p: Purchase): Purchase {
+  const slim = (detail: unknown) => (detail && typeof detail === 'object' && 'result' in detail ? { ...detail, result: undefined } : detail);
+  return { ...p, events: p.events.map((e) => ({ ...e, detail: slim(e.detail) })) };
 }
-
