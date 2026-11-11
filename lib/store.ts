@@ -68,3 +68,15 @@ export const store = {
     return true;
   },
 };
+
+/** The case as sent to the browser: without the uploaded image, and without raw PayPal payloads in event details. */
+export function publicCase(c: Case): Case {
+  const slim = (detail: unknown) =>
+    detail && typeof detail === 'object' && 'result' in detail ? { ...detail, result: undefined } : detail;
+  return {
+    ...c,
+    document: { ...c.document, dataUrl: undefined },
+    events: c.events.map((e) => ({ ...e, detail: slim(e.detail) })),
+  };
+}
+

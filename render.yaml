@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: handover
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: APP_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        sync: false
+      - key: LLM_MODEL
+        sync: false
+      - key: PAYPAL_1_CLIENT_ID
+        sync: false
+      - key: PAYPAL_1_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_2_CLIENT_ID
+        sync: false
+      - key: PAYPAL_2_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_3_CLIENT_ID
+        sync: false
+      - key: PAYPAL_3_CLIENT_SECRET
+        sync: false
+      - key: DEMO_DAILY_LIMIT
+        value: "40"
