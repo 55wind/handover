@@ -6,7 +6,7 @@ Date: 2026-11-12. Replaces the Handover design. Deadline: 2026-11-12 12:00 PT (2
 
 A price tag says the same number everywhere, but it does not cost the same. A $44 course is one hour of average income in the United States and almost eighteen hours in Viet Nam.
 
-Fair Hour lets a small seller of digital goods price in hours of life instead of dollars. A buyer anywhere is quoted the amount that costs them a comparable share of an hour of local income, inside limits the seller sets. The buyer's PayPal wallet proves where they live: the payment is only authorised at first, the agent reads the payer's country from PayPal, and it captures the payment if the country matches the quote or releases it if it does not. Nothing is taken from a buyer who is quoted the wrong price.
+Fair Hour lets a small seller of digital goods price in hours of life instead of dollars. A buyer anywhere is quoted the amount that costs them a comparable share of an hour of local income, inside limits the seller sets. The buyer's PayPal wallet proves where they live: the buyer approves an order that only asks for a hold, the agent reads the payer's country from PayPal, and it holds and captures the payment if the country matches the quote or releases it if it does not. On a mismatch no hold is even placed. Nothing is taken from a buyer who is quoted the wrong price.
 
 One-line pitch: **Priced in hours, not dollars. A clerk who listens. Proven by the wallet, not the IP address.**
 
@@ -73,10 +73,10 @@ Buyer on `/buy/[product]`:
 1. Chooses a country. Sees the list price, the fair price, and both in hours, with one sentence of explanation.
 2. May talk to the clerk (any language). May add a gift: "cover an hour for someone".
 3. Presses Pay with PayPal. The app creates an order with intent AUTHORIZE for the quoted amount and sends the buyer to PayPal to approve.
-4. Back on `/purchase/[id]`: the settlement agent authorises the order, reads the payer's country from PayPal and either captures or voids. The page shows which, with PayPal's ids.
+4. Back on `/purchase/[id]`: the settlement agent reads the payer's country from PayPal. If it matches the quote it places the hold and captures it; if not, it places no hold and the order is left unpaid. The page shows which, with PayPal's ids.
 5. On a mismatch the page says what PayPal reported, that nothing was taken, and offers the price for the wallet's country.
 
-An AI shopping agent does the same through MCP: `get_price`, `start_checkout`, `get_purchase`.
+An AI shopping agent does the same through MCP: `list_products`, `get_price`, `start_checkout`, `get_purchase`.
 
 ## 5. Rules enforced in code (`lib/pricing.ts`)
 
@@ -103,7 +103,6 @@ lib/store.ts           purchases, quotes, pool, event bus
 lib/seller.ts          the demo seller, products and rules
 lib/paypal.ts          real backend: create/authorize/capture/void/refund, order details
 lib/paypal-fake.ts     development backend with a local approval page
-lib/desk.ts            the seller's desk: tools the agents may call, each checked by pricing rules
 lib/agent.ts           model client, shared tool loop, settlement agent
 lib/clerk.ts           the clerk: greeting, conversation, documents, help and gifts
 lib/shop.ts            quotes, purchases, checkout, ledger, refunds (shared by routes and MCP)

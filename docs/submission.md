@@ -1,99 +1,104 @@
 # Devpost submission text
 
-Paste each block into the matching field. Items marked TODO are filled in after the real sandbox run and deployment.
+Paste each block into the matching field. Items marked TODO depend on the real sandbox run or the deployment and are filled in after them.
 
 ## Project name
 
-Handover
+Fair Hour
 
 ## Elevator pitch (tagline)
 
-One notice settles every payment a person left behind. An executor agent that closes, refunds and hands over a late relative's PayPal payments, within each merchant's rules.
+Priced in hours, not dollars. An AI clerk who listens, and a PayPal wallet that proves where the buyer lives before any money is taken.
 
 ## About the project
 
 ### Inspiration
 
-When someone dies, their payments don't. The streaming plan renews, the gym bills another month, an invoice keeps sending reminders. The family has to find each one, call each merchant, and send the same death certificate again and again, during the worst weeks of their lives. Surveys by Empathy put the work of settling a relative's affairs at around 13 months and hundreds of hours.
+A price tag reads the same number everywhere, but it does not cost the same. A $44.00 course is 1.0 hour of average income in the United States and 17.7 hours in Viet Nam.
 
-Most payment tools are built for the start of a customer relationship. We wanted to build for the end of one, and to make it one conversation.
+A neighbourhood shopkeeper handles this by knowing the customers: who is a student, who has had a hard month. Online checkout has no such discretion. Its usual substitute, a discount based on the IP address, is defeated by a VPN and means nothing when an AI agent does the shopping. The wallet that pays is much harder to fake.
 
 ### What it does
 
-A family member files one notice: who died, when, which email addresses they used, and what the family wants, in their own words. They attach a document such as a funeral notice.
+Fair Hour lets a small seller of digital goods price in hours of average local income instead of dollars.
 
-Handover's agent then:
-
-1. Reads the document and checks that the name and date match the notice.
-2. Asks each participating merchant's desk what it holds for that person, checks every item's live state on PayPal, and reads the merchant's bereavement policy.
-3. Proposes one action per item with a plain reason: close, take over, pause, refund, waive. In the demo it closes a gym membership and refunds the unused days, returns the unused part of a prepaid annual fee, cancels an invoice for sessions never taken, and hands a family streaming plan and a monthly charity gift over to the daughter instead of ending them. It also notices a customer with a similar name at one merchant and leaves that account alone.
-4. After the family approves, carries the plan out on PayPal and reads every result back before calling it done.
-5. Produces a closing statement with PayPal's reference for each step.
-
-Until the document matches, the only thing the agent can do is pause subscriptions, and the family can undo that with one click.
+- Code works out a fair price for 202 countries from World Bank income data and the seller's rules. The demo course is $44.00 in the United States, $36.23 in Germany, $10.41 in Viet Nam and $6.60, the floor, in Nepal.
+- An AI clerk greets each buyer in their language, explains the price in hours and listens. It can take a little off for someone whose situation is harder than their country suggests, and more if they show a document. The money comes from a pool the seller opened with $20.00 and buyers add to with gifts. The clerk does not bargain.
+- The buyer approves a PayPal order that is only authorised. A settlement agent reads the payer's country from PayPal and captures if it matches the quote. If not, nothing is taken and the buyer is offered the price for their wallet's country.
+- AI shopping agents get the same price desk over MCP, with the same check.
 
 ### How we built it
 
-- **PayPal Agent Toolkit** (`@paypal/agent-toolkit`) gives the model PayPal's own tool schemas: `show_subscription_details`, `cancel_subscription`, `create_subscription`, `create_refund`, `get_refund`, `get_order`, `get_invoice`, `cancel_invoice_auto_reminder`, `cancel_sent_invoice`, `generate_invoice_qr_code`. Suspend and activate subscription go to the Subscriptions REST API directly.
-- **The agent** is a tool-calling loop over an OpenAI-compatible endpoint, with five phases: intake, plan, pause, resume, execute. It holds no PayPal credentials.
-- **Merchant desks** sit between the agent and PayPal, one per merchant. A desk lists the tools the current phase allows, checks every call against a guard written in plain code, calls PayPal with that merchant's credentials, and writes the call to the merchant's ledger.
-- **The guard** decides what the model must not: which account belongs to the person (exact email match only), whether a step is allowed before the document is matched, whether it matches what the family approved, and how much a refund is. Refund amounts are computed from the charge's service period, the date of death and the merchant's policy, and the desk overwrites any amount the model sends.
-- **AG Grid** shows the plan the family edits and each merchant's ledger of actions. The agent's activity streams live to the page.
-- Everything on screen is a real PayPal sandbox object: subscriptions, card captures, refunds, invoices. Each demo run seeds a fresh estate across three merchants.
+- One Next.js app on the PayPal sandbox: Orders v2 with intent `AUTHORIZE`, Payments v2 to capture or void the authorisation, and refunds. `get_order` and `create_refund` go through the PayPal Agent Toolkit; the rest is REST.
+- Two agents on an OpenAI-compatible chat completions endpoint share one tool loop. Every tool call passes through the rules.
+- The rules are pure functions with unit tests. After every settlement, code reads the order back from PayPal and records what PayPal shows.
+- An MCP endpoint with four tools, and AG Grid for the seller's ledger and price table.
 
 ### Challenges we ran into
 
-- Sandbox subscriptions normally need a buyer to approve each one in a browser, and their first payment arrives asynchronously, which makes a self-serve demo with refunds hard. We seed card-funded objects and take each period charge as its own capture so every run starts fresh.
-- Deciding what the model may decide. Our first sketch let the model judge which customer records belonged to the person. That moved into code, along with every amount: the model proposes and explains, code sets ownership and money.
-- Tone. The subject is death and money. We removed every stock condolence and anything that read like a sales flow.
+- A sandbox checkout needs a buyer to approve it in a browser, so the automated end-to-end check runs on a stand-in for PayPal that follows the same order states. The real sandbox is checked by hand.
+- Deciding what the model may decide. It proposes and explains. Code sets every amount and the country match, and settles by the same rules itself if the model is unavailable.
+- Keeping "hours" honest. The figure is average income per person divided by 2,000 hours, not a wage, and every page says so.
+- Who pays for kindness. A clerk that could discount freely would cost the seller money for every good story. Help comes only from the pool, so the seller's cost is capped at the $20.00 they put in.
 
 ### Accomplishments that we're proud of
 
-- A complete path from one notice to a closing statement, with real refunds, cancellations and a hand-over on the sandbox.
-- "Done" means PayPal confirmed it. The page never shows a step as complete on the model's word.
-- Handing things over, not only shutting them down: the streaming plan a widow still watches stays on, in her daughter's name.
+- A mismatch takes no money. In the end-to-end check, a Viet Nam quote paid from a German wallet ends with no hold, no capture and an offer of the German price.
+- That check runs more than twenty cases on the stand-in, including a model that tries to capture across countries, a model that says "paid" after a release, and a capture whose answer is lost. None ends with money wrongly taken or a hold left open.
+- TODO after the real sandbox run: one sentence on what was captured and released there.
 
 ### What we learned
 
-- Safety for payment agents comes from reversibility and from narrow tools more than from prompts. Pause first, and let code hold the pen on money.
-- Merchant policy is the natural place to bound an agent. Each desk enforces its own rules, so a new merchant does not change the agent.
+- A payment agent is safest with narrow, reversible tools: authorise first, capture only on proof, and trust PayPal's record over the model's account of it.
+- A language model suits what a shopkeeper does: listening in any language and reading an unfamiliar document. It does not suit arithmetic and limits.
+- TODO after the real sandbox run: whether the payer's country arrives on the approved order, and in which field.
 
 ### What's next
 
-- Real proof-of-death checks through registries or certified documents. This build's document check is demo-grade.
-- A desk any merchant can install, exposed over MCP so any assistant can file a notice.
-- Revoking spending mandates that shopping agents hold for the person.
-- A case type for someone who is alive but cannot manage things for now: pause and resume only.
+- A database for sales and the pool, seller sign-up, and a sign-in for the seller console.
+- Currency conversion and tax. Every amount is in USD today.
+- Finer data than a national average.
+- Real document checks. Today the caps bound the cost of a forged one.
 
 ## Built with
 
-PayPal Agent Toolkit, PayPal Orders API, PayPal Subscriptions API, PayPal Invoicing API, PayPal Payments (refunds) API, PayPal sandbox, Next.js, React, TypeScript, AG Grid, Render, OpenAI-compatible LLM API (TODO: model name)
+PayPal Orders API, PayPal Payments API, PayPal Agent Toolkit, PayPal sandbox, Model Context Protocol, Next.js, React, TypeScript, AG Grid, World Bank Open Data, OpenAI-compatible LLM API (TODO: model name), Render (TODO: confirm after deployment)
 
 ## AI tools used and how
 
-- TODO model name, through an OpenAI-compatible chat completions endpoint: reads the document, plans and executes through tool calls.
+- TODO model name, through an OpenAI-compatible chat completions endpoint. It runs the clerk (conversation in the buyer's language, reading a document image, deciding through tool calls whether and how much to help) and the settlement agent (reads the order, holds, captures or releases through tool calls, and writes the message to the buyer).
 - Claude Code (Anthropic): wrote most of the code, tests and documents under the author's direction.
-- TODO if used: text-to-speech for the video voiceover.
+- TODO if used: any tool used for the video, such as text-to-speech for the voiceover.
 
 ## PayPal products used and how
 
-- Subscriptions: read, suspend, activate, cancel, and create a replacement subscription for the family member.
-- Orders and Payments: card captures for each period charge; full and partial refunds.
-- Invoicing: read the open invoice, stop its reminders, cancel it, or produce a payment QR code when the family prefers to pay from the estate.
-- Agent Toolkit: the model calls PayPal's own tool definitions through each merchant's desk.
+- Orders v2: create an order with intent `AUTHORIZE` and PayPal as the payment source, send the buyer to PayPal to approve, read the order to get the payer's country (`payer.address.country_code`), and authorise it to place the hold.
+- Payments v2: capture the authorisation when the country matches, void it otherwise, and refund a capture from the seller's ledger, in full or without the gift.
+- PayPal Agent Toolkit (`@paypal/agent-toolkit`): `get_order` and `create_refund`.
+- PayPal sandbox: one US business app as the seller, and personal accounts in Viet Nam and Germany as buyers (TODO: confirm the accounts after they are created).
+- TODO after the real sandbox run: confirm which field carried the payer's country.
 
 ## Links
 
-- Repository: https://github.com/55wind/handover
+- Repository: https://github.com/55wind/handover (TODO: update if the repository is renamed)
 - Live demo: TODO
 - Video: TODO
 
 ## Testing instructions for judges
 
-1. Open the live demo and press "Try the demo case". A fresh sandbox estate is created at three fictional merchants; this takes a few seconds.
-2. Press "File this notice". Watch the agent read the document and build the plan.
-3. Change any row if you like, then press "Approve and carry out".
-4. Open a merchant console from the home page to see the same actions from the merchant's side.
-5. To approve a take-over as the family member, use the sandbox buyer login: TODO email / TODO password.
+TODO before submitting: check these steps and button labels against the deployed build.
 
-No login is needed for the app itself. The demo is limited to 40 runs a day. Cases live in memory and disappear if the server restarts; start a new one.
+No login is needed for the app itself. You pay with these sandbox buyer accounts:
+
+- Viet Nam wallet: TODO email / TODO password
+- Germany wallet: TODO email / TODO password
+
+1. Open the live demo (TODO link) and press "Buy as someone in Viet Nam". The course is $10.41 for Viet Nam: 4.2 hours of average income, against 17.7 hours at the list price of $44.00.
+2. The clerk. Ask it for a discount, in any language: it does not bargain. Then tell it you are a student on a small scholarship. It can take up to 20% of the list price off, paid from the pool, which the seller opened with $20.00.
+3. A matching wallet. Press "Pay with PayPal" and log in with the Viet Nam wallet. The agent reads the wallet's country from PayPal, holds the payment and captures it. The receipt shows PayPal's ids and "Confirmed with PayPal".
+4. A mismatch. Open the course again with Viet Nam selected and pay with the Germany wallet. Nothing is taken. The page says PayPal reported Germany and offers the German price, $36.23.
+5. A gift. Choose Germany on the buy page, add a $5.00 gift and pay with the Germany wallet: $36.23 plus the gift, $41.23. After the capture the pool has grown by $5.00.
+6. Open "What the seller sees" (`/seller`): the rules, every sale and released payment, the pool, and what each product costs in 202 countries. A captured sale can be refunded there. The buyer gets back what they paid for the product, and a gift stays in the pool. The console has no sign-in in this demo.
+7. As an AI agent: `claude mcp add --transport http fair-hour https://TODO-host/api/mcp`, then ask for the price of the lettering course for a wallet in Viet Nam and to start a checkout.
+
+Notes. Each wallet can buy each product once. To buy again, refund the sale on the seller page or choose the other product. A price has to be paid within 60 minutes. Sales and the pool live in memory: a restart clears the sales and puts the pool back at $20.00. The demo allows 300 clerk replies and 400 PayPal orders a day. Approved payments are always settled: 200 a day with the model, and by the rules in code after that.

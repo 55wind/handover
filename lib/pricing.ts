@@ -122,7 +122,7 @@ export function captureDecision({ purchase, order, alreadyBought }: CaptureInput
   if (!order.authorizationId || !['CREATED', 'PENDING'].includes(order.authorizationStatus ?? ''))
     return no('not_approved', 'PayPal is not holding an approved payment for this purchase, so there is nothing to collect.');
   if (!order.payerCountry) return no('no_country', 'PayPal did not report which country this wallet is in, so the price cannot be confirmed.');
-  // ponytail: codes are compared as PayPal sends them. PayPal can report China as "C2", which will not match a "CN" quote; add an alias map if such wallets matter.
+  // Codes are compared exactly. The caller normalises what PayPal sends first (upper case, "C2" for China read as "CN").
   if (order.payerCountry.toUpperCase() !== quoted.toUpperCase())
     return no('country_mismatch', `PayPal reports this wallet is in ${nameOf(order.payerCountry)}. The price was quoted for ${nameOf(quoted)}.`);
   if (alreadyBought) return no('already_bought', 'This wallet has already bought this product. Each wallet can buy it once.');

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Handover architecture</title>
+<title>Fair Hour architecture</title>
 <style>
 /* engineered-paper theme (cool near-white, one accent, mono labels)
  * All colors/fonts flow through the :root tokens — tweak tokens, not scattered values. */
@@ -82,7 +82,7 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 
 
 .scroller { overflow-x: auto; border: 1px solid var(--color-rule-2); border-radius: var(--radius-card); }
 /* CANVAS SIZE: set width/height here AND on svg.edges AND its viewBox — keep the three in sync */
-.canvas { position: relative; width: 860px; height: 1080px; background: var(--color-paper);
+.canvas { position: relative; width: 860px; height: 900px; background: var(--color-paper);
   background-image:
     linear-gradient(var(--color-rule) 1px, transparent 1px),
     linear-gradient(90deg, var(--color-rule) 1px, transparent 1px);
@@ -133,7 +133,7 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 
 .node .name span, .node .role span { background: var(--color-veil); backdrop-filter: blur(1.5px);
   padding: 0 var(--space-xs); border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 
-svg.edges { position:absolute; inset:0; width:860px; height:1080px; pointer-events:none; }
+svg.edges { position:absolute; inset:0; width:860px; height:900px; pointer-events:none; }
 .e  { stroke: var(--color-accent); stroke-width:1.6; fill:none; }   /* primary flow */
 .n  { stroke: var(--color-neutral); stroke-width:1.4; fill:none; }  /* internal */
 path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
@@ -161,10 +161,10 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
 
   <header class="head">
     <div>
-      <div class="kicker">handover / architecture</div>
-      <h1>Handover</h1>
+      <div class="kicker">fair hour / architecture</div>
+      <h1>Fair Hour</h1>
     </div>
-    <p class="lede">One notice in, PayPal sandbox calls out. Every write passes the merchant's guard first.</p>
+    <p class="lede">A purchase passes the clerk and the rules, then PayPal. The country of the wallet decides whether the payment is taken.</p>
   </header>
 
   <div class="scroller">
@@ -177,18 +177,15 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
          no dark variant but the mark has black parts: <img class="plate" ...>
          AWS groups: "group aws" (AWS Cloud), or add region | az | vpc | private | public
          geometry rules: references/geometry.md -->
-    <div class="group ga" style="left:46px; top:204px; width:768px; height:594px;">
-      <div class="g-label"><img class="plate" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxODAgMTgwIj48bWFzayBoZWlnaHQ9IjE4MCIgaWQ9IjpyODptYXNrMF80MDhfMTM0IiBtYXNrVW5pdHM9InVzZXJTcGFjZU9uVXNlIiB3aWR0aD0iMTgwIiB4PSIwIiB5PSIwIiBzdHlsZT0ibWFzay10eXBlOiBhbHBoYTsiPjxjaXJjbGUgY3g9IjkwIiBjeT0iOTAiIGZpbGw9ImJsYWNrIiByPSI5MCI+PC9jaXJjbGU+PC9tYXNrPjxnIG1hc2s9InVybCgjOnI4Om1hc2swXzQwOF8xMzQpIj48Y2lyY2xlIGN4PSI5MCIgY3k9IjkwIiBkYXRhLWNpcmNsZT0idHJ1ZSIgZmlsbD0iYmxhY2siIHI9IjkwIj48L2NpcmNsZT48cGF0aCBkPSJNMTQ5LjUwOCAxNTcuNTJMNjkuMTQyIDU0SDU0VjEyNS45N0g2Ni4xMTM2VjY5LjM4MzZMMTM5Ljk5OSAxNjQuODQ1QzE0My4zMzMgMTYyLjYxNCAxNDYuNTA5IDE2MC4xNjUgMTQ5LjUwOCAxNTcuNTJaIiBmaWxsPSJ1cmwoIzpyODpwYWludDBfbGluZWFyXzQwOF8xMzQpIj48L3BhdGg+PHJlY3QgZmlsbD0idXJsKCM6cjg6cGFpbnQxX2xpbmVhcl80MDhfMTM0KSIgaGVpZ2h0PSI3MiIgd2lkdGg9IjEyIiB4PSIxMTUiIHk9IjU0Ij48L3JlY3Q+PC9nPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgaWQ9IjpyODpwYWludDBfbGluZWFyXzQwOF8xMzQiIHgxPSIxMDkiIHgyPSIxNDQuNSIgeTE9IjExNi41IiB5Mj0iMTYwLjUiPjxzdG9wIHN0b3AtY29sb3I9IndoaXRlIj48L3N0b3A+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSJ3aGl0ZSIgc3RvcC1vcGFjaXR5PSIwIj48L3N0b3A+PC9saW5lYXJHcmFkaWVudD48bGluZWFyR3JhZGllbnQgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIGlkPSI6cjg6cGFpbnQxX2xpbmVhcl80MDhfMTM0IiB4MT0iMTIxIiB4Mj0iMTIwLjc5OSIgeTE9IjU0IiB5Mj0iMTA2Ljg3NSI+PHN0b3Agc3RvcC1jb2xvcj0id2hpdGUiPjwvc3RvcD48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IndoaXRlIiBzdG9wLW9wYWNpdHk9IjAiPjwvc3RvcD48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48L3N2Zz4=" alt="">Handover, one Next.js process</div>
+    <div class="group ga" style="left:40px; top:204px; width:780px; height:390px;">
+      <div class="g-label"><img class="plate" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxODAgMTgwIj48bWFzayBoZWlnaHQ9IjE4MCIgaWQ9IjpyODptYXNrMF80MDhfMTM0IiBtYXNrVW5pdHM9InVzZXJTcGFjZU9uVXNlIiB3aWR0aD0iMTgwIiB4PSIwIiB5PSIwIiBzdHlsZT0ibWFzay10eXBlOiBhbHBoYTsiPjxjaXJjbGUgY3g9IjkwIiBjeT0iOTAiIGZpbGw9ImJsYWNrIiByPSI5MCI+PC9jaXJjbGU+PC9tYXNrPjxnIG1hc2s9InVybCgjOnI4Om1hc2swXzQwOF8xMzQpIj48Y2lyY2xlIGN4PSI5MCIgY3k9IjkwIiBkYXRhLWNpcmNsZT0idHJ1ZSIgZmlsbD0iYmxhY2siIHI9IjkwIj48L2NpcmNsZT48cGF0aCBkPSJNMTQ5LjUwOCAxNTcuNTJMNjkuMTQyIDU0SDU0VjEyNS45N0g2Ni4xMTM2VjY5LjM4MzZMMTM5Ljk5OSAxNjQuODQ1QzE0My4zMzMgMTYyLjYxNCAxNDYuNTA5IDE2MC4xNjUgMTQ5LjUwOCAxNTcuNTJaIiBmaWxsPSJ1cmwoIzpyODpwYWludDBfbGluZWFyXzQwOF8xMzQpIj48L3BhdGg+PHJlY3QgZmlsbD0idXJsKCM6cjg6cGFpbnQxX2xpbmVhcl80MDhfMTM0KSIgaGVpZ2h0PSI3MiIgd2lkdGg9IjEyIiB4PSIxMTUiIHk9IjU0Ij48L3JlY3Q+PC9nPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgaWQ9IjpyODpwYWludDBfbGluZWFyXzQwOF8xMzQiIHgxPSIxMDkiIHgyPSIxNDQuNSIgeTE9IjExNi41IiB5Mj0iMTYwLjUiPjxzdG9wIHN0b3AtY29sb3I9IndoaXRlIj48L3N0b3A+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSJ3aGl0ZSIgc3RvcC1vcGFjaXR5PSIwIj48L3N0b3A+PC9saW5lYXJHcmFkaWVudD48bGluZWFyR3JhZGllbnQgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIGlkPSI6cjg6cGFpbnQxX2xpbmVhcl80MDhfMTM0IiB4MT0iMTIxIiB4Mj0iMTIwLjc5OSIgeTE9IjU0IiB5Mj0iMTA2Ljg3NSI+PHN0b3Agc3RvcC1jb2xvcj0id2hpdGUiPjwvc3RvcD48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IndoaXRlIiBzdG9wLW9wYWNpdHk9IjAiPjwvc3RvcD48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48L3N2Zz4=" alt="">Fair Hour, one Next.js process</div>
     </div>
-    <div class="group ga-nested" style="left:70px; top:564px; width:720px; height:210px;">
-      <div class="g-label">Merchant desk, one per merchant</div>
-    </div>
-    <div class="group gb" style="left:250px; top:830px; width:540px; height:210px;">
+    <div class="group gb" style="left:190px; top:644px; width:480px; height:210px;">
       <div class="g-label"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjcuMDU2MDAwMjMyNjk2NTMzIDMgMzcuMzUwOTU5Nzc3ODMyMDMgNDUiPjxnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgY2xpcC1wYXRoPSJ1cmwoI2EpIj48cGF0aCBmaWxsPSIjMDAyOTkxIiBkPSJNMzguOTE0IDEzLjM1YzAgNS41NzQtNS4xNDQgMTIuMTUtMTIuOTI3IDEyLjE1SDE4LjQ5bC0uMzY4IDIuMzIyTDE2LjM3MyAzOUg3LjA1Nmw1LjYwNS0zNmgxNS4wOTVjNS4wODMgMCA5LjA4MiAyLjgzMyAxMC41NTUgNi43N2E5LjY4NyA5LjY4NyAwIDAgMSAuNjAzIDMuNTh6Ij48L3BhdGg+PHBhdGggZmlsbD0iIzYwQ0RGRiIgZD0iTTQ0LjI4NCAyMy43QTEyLjg5NCAxMi44OTQgMCAwIDEgMzEuNTMgMzQuNWgtNS4yMDZMMjQuMTU3IDQ4SDE0Ljg5bDEuNDgzLTkgMS43NS0xMS4xNzguMzY3LTIuMzIyaDcuNDk3YzcuNzczIDAgMTIuOTI3LTYuNTc2IDEyLjkyNy0xMi4xNSAzLjgyNSAxLjk3NCA2LjA1NSA1Ljk2MyA1LjM3IDEwLjM1eiI+PC9wYXRoPjxwYXRoIGZpbGw9IiMwMDhDRkYiIGQ9Ik0zOC45MTQgMTMuMzVDMzcuMzEgMTIuNTExIDM1LjM2NSAxMiAzMy4yNDggMTJoLTEyLjY0TDE4LjQ5IDI1LjVoNy40OTdjNy43NzMgMCAxMi45MjctNi41NzYgMTIuOTI3LTEyLjE1eiI+PC9wYXRoPjwvZz48L3N2Zz4=" alt="">PayPal sandbox</div>
     </div>
 
     <!-- EDGES ============================================================= -->
-    <svg class="edges" viewBox="0 0 860 1080" aria-hidden="true">
+    <svg class="edges" viewBox="0 0 860 900" aria-hidden="true">
       <defs>
         <!-- context-stroke inherits the line's color, so theme switches (incl. dark)
              recolor arrowheads automatically. #open is for AWS diagrams -->
@@ -199,102 +196,105 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
           <path d="M1 1 L9 5 L1 9" fill="none" stroke="context-stroke" stroke-width="1.5"/>
         </marker>
       </defs>
-      <path class="e" d="M340 170 V260" marker-end="url(#ar)"/>
-      <text class="el a" x="350" y="192">one notice</text>
-      <path class="n" d="M520 170 V260" marker-end="url(#ar)"/>
-      <text class="el" x="530" y="192">MCP</text>
+      <path class="e" d="M280 170 V260" marker-end="url(#ar)"/>
+      <text class="el a" x="290" y="192">picks a country</text>
+      <path class="n" d="M730 170 V260" marker-end="url(#ar)"/>
+      <text class="el" x="740" y="192">MCP</text>
 
-      <path class="e" d="M330 370 V420" marker-end="url(#ar)"/>
-      <path class="n" d="M520 370 V396 H350 V420" marker-end="url(#ar)"/>
+      <path class="n" d="M430 260 V170" marker-end="url(#ar)"/>
+      <path class="n" d="M580 440 V94 H464" marker-end="url(#ar)"/>
+      <text class="el" x="505" y="192" text-anchor="middle">model calls</text>
 
-      <path class="n" d="M374 454 H700 V170" marker-end="url(#ar)"/>
-      <text class="el" x="540" y="446" text-anchor="middle">model calls</text>
-      <path class="n" d="M306 454 H194" marker-end="url(#ar)"/>
-      <text class="el" x="250" y="446" text-anchor="middle">cases</text>
+      <path class="e" d="M314 294 H396" marker-end="url(#ar)"/>
+      <text class="el a" x="355" y="286" text-anchor="middle">talks</text>
+      <path class="e" d="M420 384 V440" marker-end="url(#ar)"/>
+      <text class="el a" x="410" y="416" text-anchor="end">help, inside caps</text>
 
-      <path class="e" d="M340 530 V620" marker-end="url(#ar)"/>
-      <text class="el a" x="350" y="551">tool calls</text>
+      <path class="n" d="M730 370 V416 H445 V440" marker-end="url(#ar)"/>
+      <text class="el" x="655" y="408" text-anchor="middle">same rules</text>
 
-      <path class="n" d="M194 654 H306" marker-end="url(#ar)"/>
-      <text class="el" x="250" y="646" text-anchor="middle">rules</text>
-      <path class="e" d="M374 654 H486" marker-end="url(#ar)"/>
-      <text class="el a" x="430" y="646" text-anchor="middle">allowed</text>
-      <path class="n" d="M554 654 H666" marker-end="url(#ar)"/>
-      <text class="el" x="610" y="646" text-anchor="middle">logged</text>
+      <path class="n" d="M314 474 H396" marker-end="url(#ar)"/>
+      <text class="el" x="355" y="466" text-anchor="middle">income</text>
+      <path class="e" d="M546 474 H464" marker-end="url(#ar)"/>
+      <text class="el a" x="505" y="466" text-anchor="middle">each step</text>
+      <path class="n" d="M614 474 H696" marker-end="url(#ar)"/>
+      <text class="el" x="655" y="466" text-anchor="middle">logs</text>
 
-      <path class="e" d="M520 730 V886" marker-end="url(#ar)"/>
-      <text class="el a" x="530" y="818">calls, then read-back</text>
+      <path class="e" d="M246 294 H130 V734 H246" marker-end="url(#ar)"/>
+      <text class="el a" x="140" y="470">create order,</text>
+      <text class="el a" x="140" y="484">buyer approves</text>
+
+      <path class="e" d="M580 700 V550" marker-end="url(#ar)"/>
+      <text class="el a" x="590" y="623">reports the country</text>
+      <path class="e" d="M430 564 V700" marker-end="url(#ar)"/>
+      <text class="el a" x="420" y="623" text-anchor="end">hold, capture or release</text>
     </svg>
 
     <!-- NODES ============================================================= -->
     <!-- node: left = centerX-66; tile classes: (default) | wide | dark | bare | bare res -->
-    <div class="node" style="left:274px;top:64px">
+    <div class="node" style="left:214px;top:64px;width:132px">
       <div class="tile"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjM2Q0NjYwIiBzdHJva2Utd2lkdGg9IjEuNiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjgiIHI9IjMuNiIvPjxwYXRoIGQ9Ik00LjUgMjAuNWMxLjQtMy42IDQuMi01LjQgNy41LTUuNHM2LjEgMS44IDcuNSA1LjQiLz48L3N2Zz4K" alt=""></div>
-      <div class="name"><span>Family</span></div><div class="role"><span>files one notice</span></div>
+      <div class="name"><span>Buyer</span></div><div class="role"><span>browser</span></div>
     </div>
-    <div class="node" style="left:454px;top:64px">
-      <div class="tile"><img src="data:image/svg+xml;base64,PCEtLSBAbGljZW5zZSBsdWNpZGUtc3RhdGljIHYxLjcyLjAgLSBJU0MgLS0+CjxzdmcKICBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1tZXNzYWdlLXNxdWFyZSIKICB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciCiAgd2lkdGg9IjI0IgogIGhlaWdodD0iMjQiCiAgdmlld0JveD0iMCAwIDI0IDI0IgogIGZpbGw9Im5vbmUiCiAgc3Ryb2tlPSIjM2Q0NjYwIgogIHN0cm9rZS13aWR0aD0iMS43IgogIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIKICBzdHJva2UtbGluZWpvaW49InJvdW5kIgo+CiAgPHBhdGggZD0iTTIyIDE3YTIgMiAwIDAgMS0yIDJINi44MjhhMiAyIDAgMCAwLTEuNDE0LjU4NmwtMi4yMDIgMi4yMDJBLjcxLjcxIDAgMCAxIDIgMjEuMjg2VjVhMiAyIDAgMCAxIDItMmgxNmEyIDIgMCAwIDEgMiAyeiIgLz4KPC9zdmc+Cg==" alt=""></div>
-      <div class="name"><span>Any assistant</span></div><div class="role"><span>mcp client</span></div>
-    </div>
-    <div class="node" style="left:634px;top:64px">
+    <div class="node" style="left:364px;top:64px;width:132px">
       <div class="tile"><img src="data:image/svg+xml;base64,PCEtLSBAbGljZW5zZSBsdWNpZGUtc3RhdGljIHYxLjcyLjAgLSBJU0MgLS0+CjxzdmcKICBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1icmFpbi1jaXJjdWl0IgogIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICB3aWR0aD0iMjQiCiAgaGVpZ2h0PSIyNCIKICB2aWV3Qm94PSIwIDAgMjQgMjQiCiAgZmlsbD0ibm9uZSIKICBzdHJva2U9IiMzZDQ2NjAiCiAgc3Ryb2tlLXdpZHRoPSIxLjciCiAgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIgogIHN0cm9rZS1saW5lam9pbj0icm91bmQiCj4KICA8cGF0aCBkPSJNMTIgMTNoNCIgLz4KICA8cGF0aCBkPSJNMTIgMThoNmEyIDIgMCAwMTIgMnYxIiAvPgogIDxwYXRoIGQ9Ik0xMiA4aDgiIC8+CiAgPHBhdGggZD0iTTEyIDlhNC4xNyA0LjE3IDAgMDEtMyA0IiAvPgogIDxwYXRoIGQ9Ik0xNiA4VjVhMiAyIDAgMDEyLTIiIC8+CiAgPHBhdGggZD0iTTYgMThhNCA0IDAgMDEtMi03LjQ2NSIgLz4KICA8cGF0aCBkPSJNNi4wMDQgNS4xMjVhNCA0IDAgMDAtMi41MjYgNS43NyIgLz4KICA8cGF0aCBkPSJNNi4yOTQgNi4yOTRBMyAzIDAgMTExMiA1djEzYTQgNCAwIDExLTcuOTY3LS41MTgiIC8+CiAgPGNpcmNsZSBjeD0iMTYiIGN5PSIxMyIgcj0iMC41IiBmaWxsPSJjdXJyZW50Q29sb3IiIC8+CiAgPGNpcmNsZSBjeD0iMTgiIGN5PSIzIiByPSIwLjUiIGZpbGw9ImN1cnJlbnRDb2xvciIgLz4KICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjIxIiByPSIwLjUiIGZpbGw9ImN1cnJlbnRDb2xvciIgLz4KICA8Y2lyY2xlIGN4PSIyMCIgY3k9IjgiIHI9IjAuNSIgZmlsbD0iY3VycmVudENvbG9yIiAvPgo8L3N2Zz4K" alt=""></div>
       <div class="name"><span>Language model</span></div><div class="role"><span>openai-compatible</span></div>
     </div>
-    <div class="node" style="left:274px;top:264px">
+    <div class="node" style="left:664px;top:64px;width:132px">
+      <div class="tile"><img src="data:image/svg+xml;base64,PCEtLSBAbGljZW5zZSBsdWNpZGUtc3RhdGljIHYxLjcxLjAgLSBJU0MgLS0+CjxzdmcKICBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1zaG9wcGluZy1jYXJ0IgogIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIKICB3aWR0aD0iMjQiCiAgaGVpZ2h0PSIyNCIKICB2aWV3Qm94PSIwIDAgMjQgMjQiCiAgZmlsbD0ibm9uZSIKICBzdHJva2U9IiMzZDQ2NjAiCiAgc3Ryb2tlLXdpZHRoPSIxLjciCiAgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIgogIHN0cm9rZS1saW5lam9pbj0icm91bmQiCj4KICA8cGF0aCBkPSJtMi4wNSAyLjA1IDEuMDk5LS4wMjhhMSAxIDAgMCAxIDEuMDA4LjgxNWwyLjY5IDE0LjM0N0ExIDEgMCAwIDAgNy44MyAxOEgxOCIgLz4KICA8cGF0aCBkPSJNNC41NjMgNWgxNi40MzVhMSAxIDAgMCAxIC45ODEgMS4yMDRsLTEuMDI2IDYuMjI2QTIgMiAwIDAgMSAxOC45NjIgMTRINi4yNSIgLz4KICA8Y2lyY2xlIGN4PSIxOCIgY3k9IjIwIiByPSIyIiAvPgogIDxjaXJjbGUgY3g9IjgiIGN5PSIyMCIgcj0iMiIgLz4KPC9zdmc+Cg==" alt=""></div>
+      <div class="name"><span>AI shopping agent</span></div><div class="role"><span>mcp client</span></div>
+    </div>
+    <div class="node" style="left:214px;top:264px;width:132px">
       <div class="tile"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxODAgMTgwIj48bWFzayBoZWlnaHQ9IjE4MCIgaWQ9IjpyODptYXNrMF80MDhfMTM0IiBtYXNrVW5pdHM9InVzZXJTcGFjZU9uVXNlIiB3aWR0aD0iMTgwIiB4PSIwIiB5PSIwIiBzdHlsZT0ibWFzay10eXBlOiBhbHBoYTsiPjxjaXJjbGUgY3g9IjkwIiBjeT0iOTAiIGZpbGw9ImJsYWNrIiByPSI5MCI+PC9jaXJjbGU+PC9tYXNrPjxnIG1hc2s9InVybCgjOnI4Om1hc2swXzQwOF8xMzQpIj48Y2lyY2xlIGN4PSI5MCIgY3k9IjkwIiBkYXRhLWNpcmNsZT0idHJ1ZSIgZmlsbD0iYmxhY2siIHI9IjkwIj48L2NpcmNsZT48cGF0aCBkPSJNMTQ5LjUwOCAxNTcuNTJMNjkuMTQyIDU0SDU0VjEyNS45N0g2Ni4xMTM2VjY5LjM4MzZMMTM5Ljk5OSAxNjQuODQ1QzE0My4zMzMgMTYyLjYxNCAxNDYuNTA5IDE2MC4xNjUgMTQ5LjUwOCAxNTcuNTJaIiBmaWxsPSJ1cmwoIzpyODpwYWludDBfbGluZWFyXzQwOF8xMzQpIj48L3BhdGg+PHJlY3QgZmlsbD0idXJsKCM6cjg6cGFpbnQxX2xpbmVhcl80MDhfMTM0KSIgaGVpZ2h0PSI3MiIgd2lkdGg9IjEyIiB4PSIxMTUiIHk9IjU0Ij48L3JlY3Q+PC9nPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgaWQ9IjpyODpwYWludDBfbGluZWFyXzQwOF8xMzQiIHgxPSIxMDkiIHgyPSIxNDQuNSIgeTE9IjExNi41IiB5Mj0iMTYwLjUiPjxzdG9wIHN0b3AtY29sb3I9IndoaXRlIj48L3N0b3A+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSJ3aGl0ZSIgc3RvcC1vcGFjaXR5PSIwIj48L3N0b3A+PC9saW5lYXJHcmFkaWVudD48bGluZWFyR3JhZGllbnQgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiIGlkPSI6cjg6cGFpbnQxX2xpbmVhcl80MDhfMTM0IiB4MT0iMTIxIiB4Mj0iMTIwLjc5OSIgeTE9IjU0IiB5Mj0iMTA2Ljg3NSI+PHN0b3Agc3RvcC1jb2xvcj0id2hpdGUiPjwvc3RvcD48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IndoaXRlIiBzdG9wLW9wYWNpdHk9IjAiPjwvc3RvcD48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48L3N2Zz4=" alt=""></div>
-      <div class="name"><span>Case page</span></div><div class="role"><span>next.js, ag grid</span></div>
+      <div class="name"><span>Buy page</span></div><div class="role"><span>next.js, ag grid</span></div>
     </div>
-    <div class="node" style="left:454px;top:264px">
+    <div class="node" style="left:364px;top:264px;width:132px">
+      <div class="tile"><img src="data:image/svg+xml;base64,PCEtLSBAbGljZW5zZSBsdWNpZGUtc3RhdGljIHYxLjcyLjAgLSBJU0MgLS0+CjxzdmcKICBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1tZXNzYWdlcy1zcXVhcmUiCiAgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIgogIHdpZHRoPSIyNCIKICBoZWlnaHQ9IjI0IgogIHZpZXdCb3g9IjAgMCAyNCAyNCIKICBmaWxsPSJub25lIgogIHN0cm9rZT0iIzNkNDY2MCIKICBzdHJva2Utd2lkdGg9IjEuNyIKICBzdHJva2UtbGluZWNhcD0icm91bmQiCiAgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIKPgogIDxwYXRoIGQ9Ik0xNiAxMGEyIDIgMCAwIDEtMiAySDYuODI4YTIgMiAwIDAgMC0xLjQxNC41ODZsLTIuMjAyIDIuMjAyQS43MS43MSAwIDAgMSAyIDE0LjI4NlY0YTIgMiAwIDAgMSAyLTJoMTBhMiAyIDAgMCAxIDIgMnoiIC8+CiAgPHBhdGggZD0iTTIwIDlhMiAyIDAgMCAxIDIgMnYxMC4yODZhLjcxLjcxIDAgMCAxLTEuMjEyLjUwMmwtMi4yMDItMi4yMDJBMiAyIDAgMCAwIDE3LjE3MiAxOUgxMGEyIDIgMCAwIDEtMi0ydi0xIiAvPgo8L3N2Zz4K" alt=""></div>
+      <div class="name"><span>Clerk</span></div><div class="role"><span>llm: greets, listens,<br>reads a document</span></div>
+    </div>
+    <div class="node" style="left:664px;top:264px;width:132px">
       <div class="tile"><img src="data:image/svg+xml;base64,PHN2ZyBmaWxsPSIjMDAwMDAwIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGhlaWdodD0iMWVtIiBzdHlsZT0iZmxleDpub25lO2xpbmUtaGVpZ2h0OjEiIHZpZXdCb3g9IjAgMCAyNCAyNCIgd2lkdGg9IjFlbSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+TW9kZWxDb250ZXh0UHJvdG9jb2w8L3RpdGxlPjxwYXRoIGQ9Ik0xNS42ODggMi4zNDNhMi41ODggMi41ODggMCAwMC0zLjYxIDBsLTkuNjI2IDkuNDRhLjg2My44NjMgMCAwMS0xLjIwMyAwIC44MjMuODIzIDAgMDEwLTEuMThsOS42MjYtOS40NGE0LjMxMyA0LjMxMyAwIDAxNi4wMTYgMCA0LjExNiA0LjExNiAwIDAxMS4yMDQgMy41NCA0LjMgNC4zIDAgMDEzLjYwOSAxLjE4bC4wNS4wNWE0LjExNSA0LjExNSAwIDAxMCA1LjlsLTguNzA2IDguNTM3YS4yNzQuMjc0IDAgMDAwIC4zOTNsMS43ODggMS43NTRhLjgyMy44MjMgMCAwMTAgMS4xOC44NjMuODYzIDAgMDEtMS4yMDMgMGwtMS43ODgtMS43NTNhMS45MiAxLjkyIDAgMDEwLTIuNzU0bDguNzA2LTguNTM4YTIuNDcgMi40NyAwIDAwMC0zLjU0bC0uMDUtLjA0OWEyLjU4OCAyLjU4OCAwIDAwLTMuNjA3LS4wMDNsLTcuMTcyIDcuMDM0LS4wMDIuMDAyLS4wOTguMDk3YS44NjMuODYzIDAgMDEtMS4yMDQgMCAuODIzLjgyMyAwIDAxMC0xLjE4bDcuMjczLTcuMTMzYTIuNDcgMi40NyAwIDAwLS4wMDMtMy41Mzd6Ij48L3BhdGg+PHBhdGggZD0iTTE0LjQ4NSA0LjcwM2EuODIzLjgyMyAwIDAwMC0xLjE4Ljg2My44NjMgMCAwMC0xLjIwNCAwbC03LjExOSA2Ljk4MmE0LjExNSA0LjExNSAwIDAwMCA1LjkgNC4zMTQgNC4zMTQgMCAwMDYuMDE2IDBsNy4xMi02Ljk4MmEuODIzLjgyMyAwIDAwMC0xLjE4Ljg2My44NjMgMCAwMC0xLjIwNCAwbC03LjExOSA2Ljk4MmEyLjU4OCAyLjU4OCAwIDAxLTMuNjEgMCAyLjQ3IDIuNDcgMCAwMTAtMy41NGw3LjEyLTYuOTgyeiI+PC9wYXRoPjwvc3ZnPg==" alt=""></div>
-      <div class="name"><span>MCP endpoint</span></div><div class="role"><span>POST /api/mcp</span></div>
+      <div class="name"><span>MCP price desk</span></div><div class="role"><span>POST /api/mcp</span></div>
     </div>
-    <div class="node" style="left:94px;top:424px">
-      <div class="tile"><img src="data:image/svg+xml;base64,PCEtLSBAbGljZW5zZSBsdWNpZGUtc3RhdGljIHYxLjcxLjAgLSBJU0MgLS0+CjxzdmcKICBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1kYXRhYmFzZSIKICB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciCiAgd2lkdGg9IjI0IgogIGhlaWdodD0iMjQiCiAgdmlld0JveD0iMCAwIDI0IDI0IgogIGZpbGw9Im5vbmUiCiAgc3Ryb2tlPSIjM2Q0NjYwIgogIHN0cm9rZS13aWR0aD0iMS43IgogIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIKICBzdHJva2UtbGluZWpvaW49InJvdW5kIgo+CiAgPGVsbGlwc2UgY3g9IjEyIiBjeT0iNSIgcng9IjkiIHJ5PSIzIiAvPgogIDxwYXRoIGQ9Ik0zIDVWMTlBOSAzIDAgMCAwIDIxIDE5VjUiIC8+CiAgPHBhdGggZD0iTTMgMTJBOSAzIDAgMCAwIDIxIDEyIiAvPgo8L3N2Zz4K" alt=""></div>
-      <div class="name"><span>Case store</span></div><div class="role"><span>in memory</span></div>
+    <div class="node" style="left:214px;top:444px;width:132px">
+      <div class="tile"><img src="data:image/svg+xml;base64,PCEtLSBAbGljZW5zZSBsdWNpZGUtc3RhdGljIHYxLjcyLjAgLSBJU0MgLS0+CjxzdmcKICBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1nbG9iZSIKICB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciCiAgd2lkdGg9IjI0IgogIGhlaWdodD0iMjQiCiAgdmlld0JveD0iMCAwIDI0IDI0IgogIGZpbGw9Im5vbmUiCiAgc3Ryb2tlPSIjM2Q0NjYwIgogIHN0cm9rZS13aWR0aD0iMS43IgogIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIKICBzdHJva2UtbGluZWpvaW49InJvdW5kIgo+CiAgPGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiIC8+CiAgPHBhdGggZD0iTTEyIDJhMTQuNSAxNC41IDAgMCAwIDAgMjAgMTQuNSAxNC41IDAgMCAwIDAtMjAiIC8+CiAgPHBhdGggZD0iTTIgMTJoMjAiIC8+Cjwvc3ZnPgo=" alt=""></div>
+      <div class="name"><span>Income table</span></div><div class="role"><span>world bank data</span></div>
     </div>
-    <div class="node" style="left:274px;top:424px">
+    <div class="node" style="left:364px;top:444px;width:132px">
+      <div class="tile"><img src="data:image/svg+xml;base64,PCEtLSBAbGljZW5zZSBsdWNpZGUtc3RhdGljIHYxLjcyLjAgLSBJU0MgLS0+CjxzdmcKICBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1zY2FsZSIKICB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciCiAgd2lkdGg9IjI0IgogIGhlaWdodD0iMjQiCiAgdmlld0JveD0iMCAwIDI0IDI0IgogIGZpbGw9Im5vbmUiCiAgc3Ryb2tlPSIjM2Q0NjYwIgogIHN0cm9rZS13aWR0aD0iMS43IgogIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIKICBzdHJva2UtbGluZWpvaW49InJvdW5kIgo+CiAgPHBhdGggZD0iTTEyIDN2MTgiIC8+CiAgPHBhdGggZD0ibTE5IDggMyA4YTUgNSAwIDAgMS02IDB6VjciIC8+CiAgPHBhdGggZD0iTTMgN2gxYTE3IDE3IDAgMCAwIDgtMiAxNyAxNyAwIDAgMCA4IDJoMSIgLz4KICA8cGF0aCBkPSJtNSA4IDMgOGE1IDUgMCAwIDEtNiAwelY3IiAvPgogIDxwYXRoIGQ9Ik03IDIxaDEwIiAvPgo8L3N2Zz4K" alt=""></div>
+      <div class="name"><span>Rules</span></div><div class="role"><span>code: fair price,<br>caps, country match</span></div>
+    </div>
+    <div class="node" style="left:514px;top:444px;width:132px">
       <div class="tile"><img src="data:image/svg+xml;base64,PCEtLSBAbGljZW5zZSBsdWNpZGUtc3RhdGljIHYxLjcxLjAgLSBJU0MgLS0+CjxzdmcKICBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1ib3QiCiAgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIgogIHdpZHRoPSIyNCIKICBoZWlnaHQ9IjI0IgogIHZpZXdCb3g9IjAgMCAyNCAyNCIKICBmaWxsPSJub25lIgogIHN0cm9rZT0iIzNkNDY2MCIKICBzdHJva2Utd2lkdGg9IjEuNyIKICBzdHJva2UtbGluZWNhcD0icm91bmQiCiAgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIKPgogIDxwYXRoIGQ9Ik0xMiA4VjRIOCIgLz4KICA8cmVjdCB3aWR0aD0iMTYiIGhlaWdodD0iMTIiIHg9IjQiIHk9IjgiIHJ4PSIyIiAvPgogIDxwYXRoIGQ9Ik0yIDE0aDIiIC8+CiAgPHBhdGggZD0iTTIwIDE0aDIiIC8+CiAgPHBhdGggZD0iTTE1IDEzdjIiIC8+CiAgPHBhdGggZD0iTTkgMTN2MiIgLz4KPC9zdmc+Cg==" alt=""></div>
-      <div class="name"><span>Executor agent</span></div><div class="role"><span>llm tool loop</span></div>
+      <div class="name"><span>Settlement agent</span></div><div class="role"><span>llm with tools</span></div>
     </div>
-    <div class="node" style="left:94px;top:624px">
-      <div class="tile"><img src="data:image/svg+xml;base64,PCEtLSBAbGljZW5zZSBsdWNpZGUtc3RhdGljIHYxLjcxLjAgLSBJU0MgLS0+CjxzdmcKICBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1zY3JvbGwtdGV4dCIKICB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciCiAgd2lkdGg9IjI0IgogIGhlaWdodD0iMjQiCiAgdmlld0JveD0iMCAwIDI0IDI0IgogIGZpbGw9Im5vbmUiCiAgc3Ryb2tlPSIjM2Q0NjYwIgogIHN0cm9rZS13aWR0aD0iMS43IgogIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIKICBzdHJva2UtbGluZWpvaW49InJvdW5kIgo+CiAgPHBhdGggZD0iTTE1IDEyaC01IiAvPgogIDxwYXRoIGQ9Ik0xNSA4aC01IiAvPgogIDxwYXRoIGQ9Ik0xOSAxN1Y1YTIgMiAwIDAgMC0yLTJINCIgLz4KICA8cGF0aCBkPSJNOCAyMWgxMmEyIDIgMCAwIDAgMi0ydi0xYTEgMSAwIDAgMC0xLTFIMTFhMSAxIDAgMCAwLTEgMXYxYTIgMiAwIDEgMS00IDBWNWEyIDIgMCAxIDAtNCAwdjJhMSAxIDAgMCAwIDEgMWgzIiAvPgo8L3N2Zz4K" alt=""></div>
-      <div class="name"><span>Policy</span></div><div class="role"><span>merchant's rules</span></div>
-    </div>
-    <div class="node" style="left:274px;top:624px">
-      <div class="tile"><img src="data:image/svg+xml;base64,PCEtLSBAbGljZW5zZSBsdWNpZGUtc3RhdGljIHYxLjcyLjAgLSBJU0MgLS0+CjxzdmcKICBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1zaGllbGQtY2hlY2siCiAgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIgogIHdpZHRoPSIyNCIKICBoZWlnaHQ9IjI0IgogIHZpZXdCb3g9IjAgMCAyNCAyNCIKICBmaWxsPSJub25lIgogIHN0cm9rZT0iIzNkNDY2MCIKICBzdHJva2Utd2lkdGg9IjEuNyIKICBzdHJva2UtbGluZWNhcD0icm91bmQiCiAgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIKPgogIDxwYXRoIGQ9Ik0yMCAxM2MwIDUtMy41IDcuNS03LjY2IDguOTVhMSAxIDAgMCAxLS42Ny0uMDFDNy41IDIwLjUgNCAxOCA0IDEzVjZhMSAxIDAgMCAxIDEtMWMyIDAgNC41LTEuMiA2LjI0LTIuNzJhMS4xNyAxLjE3IDAgMCAxIDEuNTIgMEMxNC41MSAzLjgxIDE3IDUgMTkgNWExIDEgMCAwIDEgMSAxeiIgLz4KICA8cGF0aCBkPSJtOSAxMiAyIDIgNC00IiAvPgo8L3N2Zz4K" alt=""></div>
-      <div class="name"><span>Guard</span></div><div class="role"><span>checks in code</span></div>
-    </div>
-    <div class="node" style="left:454px;top:624px">
-      <div class="tile"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjcuMDU2MDAwMjMyNjk2NTMzIDMgMzcuMzUwOTU5Nzc3ODMyMDMgNDUiPjxnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgY2xpcC1wYXRoPSJ1cmwoI2EpIj48cGF0aCBmaWxsPSIjMDAyOTkxIiBkPSJNMzguOTE0IDEzLjM1YzAgNS41NzQtNS4xNDQgMTIuMTUtMTIuOTI3IDEyLjE1SDE4LjQ5bC0uMzY4IDIuMzIyTDE2LjM3MyAzOUg3LjA1Nmw1LjYwNS0zNmgxNS4wOTVjNS4wODMgMCA5LjA4MiAyLjgzMyAxMC41NTUgNi43N2E5LjY4NyA5LjY4NyAwIDAgMSAuNjAzIDMuNTh6Ij48L3BhdGg+PHBhdGggZmlsbD0iIzYwQ0RGRiIgZD0iTTQ0LjI4NCAyMy43QTEyLjg5NCAxMi44OTQgMCAwIDEgMzEuNTMgMzQuNWgtNS4yMDZMMjQuMTU3IDQ4SDE0Ljg5bDEuNDgzLTkgMS43NS0xMS4xNzguMzY3LTIuMzIyaDcuNDk3YzcuNzczIDAgMTIuOTI3LTYuNTc2IDEyLjkyNy0xMi4xNSAzLjgyNSAxLjk3NCA2LjA1NSA1Ljk2MyA1LjM3IDEwLjM1eiI+PC9wYXRoPjxwYXRoIGZpbGw9IiMwMDhDRkYiIGQ9Ik0zOC45MTQgMTMuMzVDMzcuMzEgMTIuNTExIDM1LjM2NSAxMiAzMy4yNDggMTJoLTEyLjY0TDE4LjQ5IDI1LjVoNy40OTdjNy43NzMgMCAxMi45MjctNi41NzYgMTIuOTI3LTEyLjE1eiI+PC9wYXRoPjwvZz48L3N2Zz4=" alt=""></div>
-      <div class="name"><span>Agent Toolkit</span></div><div class="role"><span>paypal tools + rest</span></div>
-    </div>
-    <div class="node" style="left:634px;top:624px">
+    <div class="node" style="left:664px;top:444px;width:132px">
       <div class="tile"><img src="data:image/svg+xml;base64,PCEtLSBAbGljZW5zZSBsdWNpZGUtc3RhdGljIHYxLjcxLjAgLSBJU0MgLS0+CjxzdmcKICBjbGFzcz0ibHVjaWRlIGx1Y2lkZS1saXN0LWNoZWNrcyIKICB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciCiAgd2lkdGg9IjI0IgogIGhlaWdodD0iMjQiCiAgdmlld0JveD0iMCAwIDI0IDI0IgogIGZpbGw9Im5vbmUiCiAgc3Ryb2tlPSIjM2Q0NjYwIgogIHN0cm9rZS13aWR0aD0iMS43IgogIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIKICBzdHJva2UtbGluZWpvaW49InJvdW5kIgo+CiAgPHBhdGggZD0iTTEzIDVoOCIgLz4KICA8cGF0aCBkPSJNMTMgMTJoOCIgLz4KICA8cGF0aCBkPSJNMTMgMTloOCIgLz4KICA8cGF0aCBkPSJtMyAxNyAyIDIgNC00IiAvPgogIDxwYXRoIGQ9Im0zIDcgMiAyIDQtNCIgLz4KPC9zdmc+Cg==" alt=""></div>
-      <div class="name"><span>Ledger</span></div><div class="role"><span>every call</span></div>
+      <div class="name"><span>Ledger and pool</span></div><div class="role"><span>in memory</span></div>
     </div>
-    <div class="node" style="left:274px;top:890px">
+    <div class="node" style="left:208px;top:704px;width:144px">
       <div class="tile"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjcuMDU2MDAwMjMyNjk2NTMzIDMgMzcuMzUwOTU5Nzc3ODMyMDMgNDUiPjxnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgY2xpcC1wYXRoPSJ1cmwoI2EpIj48cGF0aCBmaWxsPSIjMDAyOTkxIiBkPSJNMzguOTE0IDEzLjM1YzAgNS41NzQtNS4xNDQgMTIuMTUtMTIuOTI3IDEyLjE1SDE4LjQ5bC0uMzY4IDIuMzIyTDE2LjM3MyAzOUg3LjA1Nmw1LjYwNS0zNmgxNS4wOTVjNS4wODMgMCA5LjA4MiAyLjgzMyAxMC41NTUgNi43N2E5LjY4NyA5LjY4NyAwIDAgMSAuNjAzIDMuNTh6Ij48L3BhdGg+PHBhdGggZmlsbD0iIzYwQ0RGRiIgZD0iTTQ0LjI4NCAyMy43QTEyLjg5NCAxMi44OTQgMCAwIDEgMzEuNTMgMzQuNWgtNS4yMDZMMjQuMTU3IDQ4SDE0Ljg5bDEuNDgzLTkgMS43NS0xMS4xNzguMzY3LTIuMzIyaDcuNDk3YzcuNzczIDAgMTIuOTI3LTYuNTc2IDEyLjkyNy0xMi4xNSAzLjgyNSAxLjk3NCA2LjA1NSA1Ljk2MyA1LjM3IDEwLjM1eiI+PC9wYXRoPjxwYXRoIGZpbGw9IiMwMDhDRkYiIGQ9Ik0zOC45MTQgMTMuMzVDMzcuMzEgMTIuNTExIDM1LjM2NSAxMiAzMy4yNDggMTJoLTEyLjY0TDE4LjQ5IDI1LjVoNy40OTdjNy43NzMgMCAxMi45MjctNi41NzYgMTIuOTI3LTEyLjE1eiI+PC9wYXRoPjwvZz48L3N2Zz4=" alt=""></div>
-      <div class="name"><span>Subscriptions</span></div><div class="role"><span>suspend, cancel</span></div>
+      <div class="name"><span>Orders</span></div><div class="role"><span>create, approve, hold</span></div>
     </div>
-    <div class="node" style="left:454px;top:890px">
+    <div class="node" style="left:358px;top:704px;width:144px">
       <div class="tile"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjcuMDU2MDAwMjMyNjk2NTMzIDMgMzcuMzUwOTU5Nzc3ODMyMDMgNDUiPjxnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgY2xpcC1wYXRoPSJ1cmwoI2EpIj48cGF0aCBmaWxsPSIjMDAyOTkxIiBkPSJNMzguOTE0IDEzLjM1YzAgNS41NzQtNS4xNDQgMTIuMTUtMTIuOTI3IDEyLjE1SDE4LjQ5bC0uMzY4IDIuMzIyTDE2LjM3MyAzOUg3LjA1Nmw1LjYwNS0zNmgxNS4wOTVjNS4wODMgMCA5LjA4MiAyLjgzMyAxMC41NTUgNi43N2E5LjY4NyA5LjY4NyAwIDAgMSAuNjAzIDMuNTh6Ij48L3BhdGg+PHBhdGggZmlsbD0iIzYwQ0RGRiIgZD0iTTQ0LjI4NCAyMy43QTEyLjg5NCAxMi44OTQgMCAwIDEgMzEuNTMgMzQuNWgtNS4yMDZMMjQuMTU3IDQ4SDE0Ljg5bDEuNDgzLTkgMS43NS0xMS4xNzguMzY3LTIuMzIyaDcuNDk3YzcuNzczIDAgMTIuOTI3LTYuNTc2IDEyLjkyNy0xMi4xNSAzLjgyNSAxLjk3NCA2LjA1NSA1Ljk2MyA1LjM3IDEwLjM1eiI+PC9wYXRoPjxwYXRoIGZpbGw9IiMwMDhDRkYiIGQ9Ik0zOC45MTQgMTMuMzVDMzcuMzEgMTIuNTExIDM1LjM2NSAxMiAzMy4yNDggMTJoLTEyLjY0TDE4LjQ5IDI1LjVoNy40OTdjNy43NzMgMCAxMi45MjctNi41NzYgMTIuOTI3LTEyLjE1eiI+PC9wYXRoPjwvZz48L3N2Zz4=" alt=""></div>
-      <div class="name"><span>Orders, refunds</span></div><div class="role"><span>captures, refunds</span></div>
+      <div class="name"><span>Payments</span></div><div class="role"><span>capture, void, refund</span></div>
     </div>
-    <div class="node" style="left:634px;top:890px">
+    <div class="node" style="left:514px;top:704px;width:132px">
       <div class="tile"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjcuMDU2MDAwMjMyNjk2NTMzIDMgMzcuMzUwOTU5Nzc3ODMyMDMgNDUiPjxnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgY2xpcC1wYXRoPSJ1cmwoI2EpIj48cGF0aCBmaWxsPSIjMDAyOTkxIiBkPSJNMzguOTE0IDEzLjM1YzAgNS41NzQtNS4xNDQgMTIuMTUtMTIuOTI3IDEyLjE1SDE4LjQ5bC0uMzY4IDIuMzIyTDE2LjM3MyAzOUg3LjA1Nmw1LjYwNS0zNmgxNS4wOTVjNS4wODMgMCA5LjA4MiAyLjgzMyAxMC41NTUgNi43N2E5LjY4NyA5LjY4NyAwIDAgMSAuNjAzIDMuNTh6Ij48L3BhdGg+PHBhdGggZmlsbD0iIzYwQ0RGRiIgZD0iTTQ0LjI4NCAyMy43QTEyLjg5NCAxMi44OTQgMCAwIDEgMzEuNTMgMzQuNWgtNS4yMDZMMjQuMTU3IDQ4SDE0Ljg5bDEuNDgzLTkgMS43NS0xMS4xNzguMzY3LTIuMzIyaDcuNDk3YzcuNzczIDAgMTIuOTI3LTYuNTc2IDEyLjkyNy0xMi4xNSAzLjgyNSAxLjk3NCA2LjA1NSA1Ljk2MyA1LjM3IDEwLjM1eiI+PC9wYXRoPjxwYXRoIGZpbGw9IiMwMDhDRkYiIGQ9Ik0zOC45MTQgMTMuMzVDMzcuMzEgMTIuNTExIDM1LjM2NSAxMiAzMy4yNDggMTJoLTEyLjY0TDE4LjQ5IDI1LjVoNy40OTdjNy43NzMgMCAxMi45MjctNi41NzYgMTIuOTI3LTEyLjE1eiI+PC9wYXRoPjwvZz48L3N2Zz4=" alt=""></div>
-      <div class="name"><span>Invoicing</span></div><div class="role"><span>cancel, reminders</span></div>
+      <div class="name"><span>Wallet&#39;s country</span></div><div class="role"><span>payer country code</span></div>
     </div>
 
   </div>
   </div>
 
   <div class="legend">
-    <span><span class="sw"></span>settlement path</span>
+    <span><span class="sw"></span>a purchase</span>
     <span><span class="sw n"></span>internal</span>
   </div>
 
   <div class="foot">
-    <span>github.com/55wind/handover</span>
+    <span>fair hour / paypal ai hackathon 2026 / paypal sandbox only</span>
     <span>icons: svgl / Lucide · made with <a href="https://github.com/caru-ini/stack-diagram" target="_blank" rel="noopener">stack-diagram</a></span>
   </div>
 
