@@ -1,3 +1,4 @@
+import { recheck } from '@/lib/agent';
 import { gone } from '@/lib/http';
 import { publicPurchase, store } from '@/lib/store';
 
@@ -32,6 +33,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       const send = (data: unknown) => write(`data: ${JSON.stringify(data)}\n\n`);
       send({ purchase: publicPurchase(p) });
       off = store.subscribe(id, (event, current) => send({ event, purchase: publicPurchase(current) }));
+      void recheck(id).catch(() => {}); // a result PayPal had not confirmed yet is asked about again
       beat = setInterval(() => write(': keep-alive\n\n'), 20_000);
       req.signal.addEventListener('abort', stop);
     },

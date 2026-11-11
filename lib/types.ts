@@ -56,7 +56,8 @@ export interface Event {
 }
 
 export interface Purchase {
-  id: string;
+  id: string; // known only to the buyer: it opens their page and their conversation with the clerk
+  ref: string; // what the seller's ledger shows instead of the id
   createdAt: string;
   productId: string;
   quote: Quote;
@@ -89,9 +90,10 @@ export interface Purchase {
 
 export interface PoolEntry {
   ts: string;
-  purchaseId: string;
-  kind: 'gift' | 'help';
-  amount: string;
+  ref: string; // the sale's ledger reference; empty for the seller's opening sum
+  kind: 'seed' | 'gift' | 'help'; // seed: put in by the seller; gift: added by a buyer; help: paid out towards a buyer's price
+  amount: string; // negative when a refund reverses an earlier entry
+  country?: CountryCode; // the country the sale was quoted for
 }
 export interface Pool {
   balance: string;
@@ -117,7 +119,8 @@ export interface Backend {
   authorizeOrder(orderId: string): Promise<{ authorizationId: string; status: string }>;
   captureAuthorization(authorizationId: string, requestId: string): Promise<{ captureId: string; status: string }>;
   voidAuthorization(authorizationId: string): Promise<void>;
-  refundCapture(captureId: string, requestId: string): Promise<{ refundId: string; status: string }>;
+  /** `amount` refunds part of the capture; without it the whole capture goes back. */
+  refundCapture(captureId: string, requestId: string, amount?: string): Promise<{ refundId: string; status: string }>;
 }
 
 export interface ToolDef {

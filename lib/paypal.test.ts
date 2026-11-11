@@ -133,7 +133,16 @@ test('a capture cannot be refunded twice', async () => {
   const { authorizationId } = await authorized();
   const { captureId } = await pp.captureAuthorization(authorizationId, 'capture-p1');
   await pp.refundCapture(captureId, 'refund-p1');
-  await assert.rejects(pp.refundCapture(captureId, 'refund-p1-again'), /already been fully refunded/);
+  await assert.rejects(pp.refundCapture(captureId, 'refund-p1-again'), /already been refunded/);
+});
+
+test('a refund can give back part of a capture, and never more than was captured', async () => {
+  const { orderId, authorizationId } = await authorized();
+  const { captureId } = await pp.captureAuthorization(authorizationId, 'capture-p1');
+  const captured = (await pp.getOrder(orderId)).amount!;
+  await assert.rejects(pp.refundCapture(captureId, 'refund-too-much', (Number(captured) + 1).toFixed(2)), /less than or equal/);
+  await pp.refundCapture(captureId, 'refund-part', '1.00');
+  assert.equal((await pp.getOrder(orderId)).captureStatus, 'PARTIALLY_REFUNDED');
 });
 
 test('unknown ids are refused the way PayPal refuses them', async () => {

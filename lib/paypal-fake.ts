@@ -22,11 +22,13 @@ interface Order {
 interface State {
   orders: Map<string, Order>;
   fail: Map<string, string>;
+  lose: Map<string, string>;
 }
 
 // On globalThis so orders survive Next.js hot reloads.
 const g = globalThis as { __fairHourFake?: State };
-const s: State = (g.__fairHourFake ??= { orders: new Map(), fail: new Map() });
+const s: State = (g.__fairHourFake ??= { orders: new Map(), fail: new Map(), lose: new Map() });
+s.lose ??= new Map(); // state kept from before a hot reload may lack it
 
 const rid = () => Array.from(randomBytes(17), (b) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');
 
@@ -46,16 +48,21 @@ function holding(key: 'authorizationId' | 'captureId', id: string): OrderView {
   for (const o of s.orders.values()) if (o.view[key] === id) return o.view;
   throw notFound();
 }
-function trip(method: keyof Backend): void {
-  const message = s.fail.get(method);
+function trip(method: keyof Backend, from: Map<string, string> = s.fail): void {
+  const message = from.get(method);
   if (message === undefined) return;
-  s.fail.delete(method);
+  from.delete(method);
   throw new Error(message);
 }
 
 /** Test hook: the next call of this method throws this message, as if PayPal had refused. */
 export function failNext(method: keyof Backend, message: string): void {
   s.fail.set(method, message);
+}
+
+/** Test hook: the next capture goes through at PayPal, but the caller gets this error instead of the answer. */
+export function loseNextAnswer(method: 'captureAuthorization', message: string): void {
+  s.lose.set(method, message);
 }
 
 /** Stands in for the buyer approving at PayPal with this wallet. Returns where PayPal would send the browser next. */
@@ -68,6 +75,10 @@ export function approve(orderId: string, walletId: string): string {
   // Plain string handling: in development the return URL is a path, which `new URL` cannot parse without a base.
   return `${o.returnUrl}${o.returnUrl.includes('?') ? '&' : '?'}token=${orderId}&PayerID=${walletId}`;
 }
+
+/** Test hook: what was refunded for a capture. */
+const refunds = new Map<string, string>();
+export const refundedAmount = (captureId: string): string | undefined => refunds.get(captureId);
 
 export const cancelUrlOf = (orderId: string): string | undefined => s.orders.get(orderId)?.cancelUrl;
 
@@ -102,6 +113,7 @@ export const fakeBackend: Backend = {
     if (v.authorizationStatus === 'VOIDED') throw refused('A voided authorization cannot be captured or reauthorized.');
     if (v.authorizationStatus === 'CAPTURED') throw refused('Authorization has already been captured.');
     Object.assign(v, { authorizationStatus: 'CAPTURED', captureId: rid(), captureStatus: 'COMPLETED' });
+    trip('captureAuthorization', s.lose);
     return { captureId: v.captureId!, status: v.captureStatus! };
   },
 
@@ -113,11 +125,13 @@ export const fakeBackend: Backend = {
     v.authorizationStatus = 'VOIDED';
   },
 
-  async refundCapture(captureId) {
+  async refundCapture(captureId, _requestId, amount) {
     trip('refundCapture');
     const v = holding('captureId', captureId);
-    if (v.captureStatus === 'REFUNDED') throw refused('The capture has already been fully refunded.');
-    v.captureStatus = 'REFUNDED';
+    if (v.captureStatus === 'REFUNDED' || v.captureStatus === 'PARTIALLY_REFUNDED') throw refused('The capture has already been refunded.');
+    if (amount && Number(amount) > Number(v.amount)) throw refused('The refund amount must be less than or equal to the capture amount.');
+    v.captureStatus = amount && Number(amount) < Number(v.amount) ? 'PARTIALLY_REFUNDED' : 'REFUNDED';
+    refunds.set(captureId, amount ?? v.amount ?? '');
     return { refundId: rid(), status: 'COMPLETED' };
   },
 };

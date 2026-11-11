@@ -25,6 +25,7 @@ function purchase(country = 'VN', amount = '10.41'): Purchase {
   assert.ok(price);
   return {
     id: 'p1',
+    ref: 'r1',
     createdAt: '2026-11-12T00:00:00Z',
     productId: course.id,
     quote: { id: 'q1', productId: course.id, price, createdAt: '2026-11-12T00:00:00Z', expiresAt: '2026-11-12T00:30:00Z' },

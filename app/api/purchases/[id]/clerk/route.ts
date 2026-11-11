@@ -20,11 +20,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   if (!greet && !text && !documentDataUrl) return Response.json({ error: 'Please write something for the clerk.' }, { status: 400 });
   if (greet && p.messages.length) return Response.json(publicPurchase(p)); // already greeted
+  // Everything that would stop the clerk is checked before a run is counted, so refused requests cost nothing.
+  if (p.status !== 'open') return Response.json({ error: 'The payment has already started.' }, { status: 400 });
   if (p.running) return Response.json({ error: 'The clerk is still answering.' }, { status: 409 });
   if (p.messages.length >= 24) {
     return Response.json({ error: 'This conversation has reached its limit. You can still pay at the price shown.' }, { status: 429 });
   }
-  if (!store.takeRun()) {
+  if (!store.takeRun('clerk')) {
     return Response.json({ error: "Today's allowance for the clerk is used up. You can still pay at the price shown." }, { status: 429 });
   }
   const error = await runClerk(p.id, { text, greet, documentDataUrl });

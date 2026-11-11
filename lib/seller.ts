@@ -15,7 +15,10 @@ export const RULES: Rules = {
   help: { maxPercent: 20, maxPercentWithProof: 50, perMonth: 30 },
 };
 
-export const productById = (id: string) => PRODUCTS.find((p) => p.id === id);
+/** What the seller puts into the pool to start it. Everything after that comes from buyers' gifts. */
+export const POOL_SEED = '20.00';
+
+export const productById =(id: string) => PRODUCTS.find((p) => p.id === id);
 
 export const isFake = () => process.env.PAYPAL_FAKE === '1';
 /** Development only: a scripted stand-in replaces the language model. */

@@ -18,7 +18,7 @@ A neighbourhood shopkeeper knows who is a student and who has had a hard month, 
 |---|---|---|
 | Listening and judging | The clerk (LLM) | Opens the conversation in the buyer's language, explains the price in hours, hears a situation, reads a document in any country's format, decides whether and how much to help, records a gift. It does not bargain. |
 | Proof of residence | PayPal | Reports the country the paying wallet is registered in. |
-| Limits | Code | Every amount, the country match, the help caps, the pool balance. The seller never pays for help: it comes from a pool other buyers funded. |
+| Limits | Code | Every amount, the country match, the help caps, the pool balance. Help comes only from a pool: the seller opens it with $20, and after that buyers fill it with gifts. |
 | Settlement | The settlement agent (LLM with tools) | Reads the order, holds, takes or releases the payment, and tells the buyer what happened in their language. Code refuses any step the rules do not allow and releases whatever is left open. |
 
 ### Why this, for this hackathon
@@ -38,7 +38,7 @@ Regional pricing exists: game stores and streaming services set prices per count
 1. Show any price as hours of average local income, for about 200 countries, from public World Bank data.
 2. Quote a fair price per country from the seller's rules. Code computes every amount.
 3. Settle with proof: authorise, read the payer country from PayPal, then capture or void. A mismatch takes no money and gets a plain explanation and the right price.
-4. A clerk agent that talks to buyers in their language, explains the price, and can lower it for someone whose circumstances differ from their wallet's country, only from a pool other buyers funded and only inside the seller's caps.
+4. A clerk agent that talks to buyers in their language, explains the price, and can lower it for someone whose circumstances differ from their wallet's country, only from the pool (opened by the seller with $20, then filled by buyers' gifts) and only inside the seller's caps.
 5. A seller console: the rules, what the price costs in each country, every sale and every refused attempt.
 6. The same price desk for AI shopping agents over MCP.
 7. Judges can try it with published sandbox buyer logins, and can also see recorded real sandbox runs without logging in.
@@ -82,12 +82,14 @@ An AI shopping agent does the same through MCP: `get_price`, `start_checkout`, `
 
 1. Amounts come only from the quote. The order amount equals the quote's fair price, minus any granted help, plus any gift.
 2. Capture is allowed only when PayPal's payer country equals the quote's country, the wallet has not already bought this product, and the amount equals what was authorised.
-3. Anything else is voided. If the agent stops early, code voids what is still open. It never captures on its own.
-4. Help from the pool: at most `help.maxPercent` of the list price on what a buyer says alone (20% in the demo), at most `help.maxPercentWithProof` when the clerk has read a document that supports it (50%), never more than the pool holds, at most `help.perMonth` grants a month, and the buyer still pays at least one dollar. The clerk cannot tell whether a document is genuine; the caps bound that risk. The image is not kept.
-5. A gift goes to the pool only after its payment is captured.
-6. Every decision is logged with PayPal's ids. The UI says "captured" only after reading the capture back from PayPal.
+3. Anything else is voided. If the agent stops early, code voids what is still open. After every settlement code reads the order back from PayPal: a capture PayPal holds is recorded, a hold still open is released. The model's closing message is shown only if it agrees with that reading. If the model is unavailable or its daily allowance is spent, the same rules settle the payment without it.
+4. Settlement starts only when PayPal itself reports the order as approved; opening the return address proves nothing. One wallet buys one product once, also when two purchases settle at the same moment.
+5. Help from the pool: at most `help.maxPercent` of the list price on what a buyer says alone (20% in the demo), at most `help.maxPercentWithProof` when the clerk has read a document that supports it (50%), never more than the pool holds, at most `help.perMonth` grants a month, and the buyer still pays at least one dollar. The clerk cannot tell whether a document is genuine; the caps bound that risk. The image is not kept. A promise of help lapses after 60 minutes if the buyer does not pay, and help the pool can no longer cover is not taken: the payment is released.
+6. A gift goes to the pool only after its payment is captured. A refund sends back what the buyer paid for the product; the gift stays in the pool, and help the pool paid towards that sale returns to it.
+7. Every decision is logged with PayPal's ids. The UI says "captured" only after reading the capture back from PayPal. The seller's ledger shows a sale reference, never the id that opens a buyer's page.
+8. Daily caps, counted separately: clerk replies, model settlements, orders created at PayPal. Request bodies are read with a byte limit, PayPal and model calls have time limits, and stale quotes and unpaid purchases are forgotten.
 
-What this does not stop: someone paying with a wallet lent by a person in another country. One purchase per wallet per product limits it.
+What this does not stop: someone paying with a wallet lent by a person in another country. One purchase per wallet per product limits it. The seller console has no sign-in in this demo, so anyone who opens it can refund a sandbox sale once.
 
 ## 6. Architecture
 

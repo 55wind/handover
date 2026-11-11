@@ -5,6 +5,16 @@ import { isFake } from './seller';
 import type { Backend, OrderView } from './types';
 
 const BASE = 'https://api-m.sandbox.paypal.com'; // sandbox only: this project never calls live PayPal
+const TIMEOUT_MS = 20_000; // a payment step that PayPal does not answer is reported as failed, not waited on for ever
+
+/** fetch that gives up after TIMEOUT_MS, with a message a person can read. */
+async function call(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  } catch (e) {
+    throw new Error((e as Error).name === 'TimeoutError' ? `PayPal did not answer within ${TIMEOUT_MS / 1000} seconds.` : `PayPal could not be reached: ${(e as Error).message}`);
+  }
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Json = any; // PayPal JSON, read field by field
@@ -67,7 +77,7 @@ function realBackend(clientId: string, clientSecret: string): Backend {
 
   async function auth(): Promise<string> {
     if (Date.now() < expires) return token;
-    const r = await fetch(`${BASE}/v1/oauth2/token`, {
+    const r = await call(`${BASE}/v1/oauth2/token`, {
       method: 'POST',
       headers: {
         Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
@@ -84,7 +94,7 @@ function realBackend(clientId: string, clientSecret: string): Backend {
   }
 
   async function post(path: string, body?: unknown, headers: Record<string, string> = {}): Promise<Json> {
-    const r = await fetch(BASE + path, {
+    const r = await call(BASE + path, {
       method: 'POST',
       headers: { Authorization: `Bearer ${await auth()}`, 'Content-Type': 'application/json', ...headers },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -100,13 +110,20 @@ function realBackend(clientId: string, clientSecret: string): Backend {
     return j;
   }
 
-  async function tool(name: 'get_order' | 'create_refund', args: Record<string, string>, requestId?: string): Promise<Json> {
+  async function tool(name: 'get_order' | 'create_refund', args: Record<string, unknown>, requestId?: string): Promise<Json> {
     await auth(); // drops the shared toolkit when its token is about to expire
     // ponytail: the toolkit takes PayPal-Request-Id only at construction, so a call with one builds its own toolkit,
     // which costs one extra token request. Fine for the occasional refund.
     const tk = requestId ? await newToolkit(requestId) : (toolkit ??= await newToolkit());
-    const reply = await tk.handleToolCall({ id: randomUUID(), type: 'function', function: { name, arguments: JSON.stringify(args) } });
-    return toolkitResult(reply.content);
+    // The toolkit has no time limit of its own.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new Error(`PayPal did not answer within ${TIMEOUT_MS / 1000} seconds.`)), TIMEOUT_MS)));
+    try {
+      const reply = await Promise.race([tk.handleToolCall({ id: randomUUID(), type: 'function', function: { name, arguments: JSON.stringify(args) } }), late]);
+      return toolkitResult(reply.content);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   return {
@@ -156,16 +173,19 @@ function realBackend(clientId: string, clientSecret: string): Backend {
 
     async captureAuthorization(authorizationId, requestId) {
       const c = await post(`/v2/payments/authorizations/${plain(authorizationId)}/capture`, { final_capture: true }, { 'PayPal-Request-Id': requestId });
-      return { captureId: c.id, status: c.status };
+      if (!c.id) throw new Error(`PayPal answered the capture of ${authorizationId} without a capture id.`);
+      return { captureId: c.id, status: String(c.status) };
     },
 
     async voidAuthorization(authorizationId) {
       await post(`/v2/payments/authorizations/${plain(authorizationId)}/void`); // 204, no body
     },
 
-    async refundCapture(captureId, requestId) {
-      const r = await tool('create_refund', { capture_id: plain(captureId) }, requestId); // no amount: the full capture
-      return { refundId: r.id, status: r.status };
+    async refundCapture(captureId, requestId, amount) {
+      // Without an amount PayPal refunds the full capture.
+      const r = await tool('create_refund', { capture_id: plain(captureId), ...(amount ? { amount: { currency_code: 'USD', value: amount } } : {}) }, requestId);
+      if (!r.id) throw new Error(`PayPal answered the refund of ${captureId} without a refund id.`);
+      return { refundId: r.id, status: String(r.status) };
     },
   };
 }

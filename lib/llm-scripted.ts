@@ -44,7 +44,7 @@ export function scripted(): Llm {
       }
       if (needs) {
         const r = results.at(-1);
-        return { content: r?.ok ? `I have taken $${r.data?.help} off, from a pool other buyers paid into. You now pay $${r.data?.buyer_now_pays}.` : `I could not give help. ${r?.error ?? ''}` };
+        return { content: r?.ok ? `I have taken $${r.data?.help} off, from the shop's pool. You now pay $${r.data?.buyer_now_pays}.` : `I could not give help. ${r?.error ?? ''}` };
       }
       return {
         content: `This costs $${q.fair} for ${q.countryName}: about ${q.hoursAtFair} hours of average income there, against ${q.hoursAtList} hours at the list price of $${q.list}. The country is taken from your PayPal wallet when you pay.`,
@@ -68,6 +68,7 @@ export function scripted(): Llm {
       content: null,
       tool_calls: [
         call('finish', {
+          result: taken ? 'paid' : 'released',
           message: taken
             ? `Paid. PayPal confirmed your wallet is registered in ${ctx.quoted_country_name}.`
             : refused && match

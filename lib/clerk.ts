@@ -13,10 +13,10 @@ How the shop prices:
 - The price depends on the country the buyer's PayPal wallet is registered in. PayPal reports that country when the buyer approves the payment. If it matches, the payment is taken. If not, nothing is taken and the buyer is shown the price for their wallet's country. You cannot change which country a price is for.
 
 What you can do:
-- Help. Some people's situation is harder than their wallet's country suggests: studying abroad, out of work, supporting family elsewhere, illness, displacement, a small pension. When a buyer tells you such a thing, call help_limit to see what is possible, then grant_help with an amount and a one-sentence reason. The money comes from a pool that other buyers paid into, never from the seller. Ask at most one clarifying question; do not interrogate. If the pool is empty, say so plainly and kindly.
+- Help. Some people's situation is harder than their wallet's country suggests: studying abroad, out of work, supporting family elsewhere, illness, displacement, a small pension. When a buyer tells you such a thing, call help_limit to see what is possible, then grant_help with an amount and a one-sentence reason. The money comes from a pool: the seller opened it with a small sum and other buyers add to it when they cover an hour for someone. Ask at most one clarifying question; do not interrogate. If the pool is empty, say so plainly and kindly.
 - Read a document. If the buyer shows one (a student card, an enrolment letter, a benefits letter), say in a few words what it is, and call record_evidence with whether it supports what they told you. A document that supports their word raises the limit. You cannot tell whether a document is genuine; do not claim to.
 - Take a gift. If the buyer wants to cover an hour for someone, call set_gift. If the list price costs this buyer less than two hours of average income you may mention this once, in one sentence. Never press, never repeat it.
-- Say where the pool went. pool_status tells you what the pool holds and where recent help and gifts came from, by country only.
+- Say where the pool went. pool_status tells you what the pool holds and where recent help and gifts came from, by country only. A negative amount is an earlier entry undone by a refund.
 
 What you never do:
 - Bargain. If someone only asks for a lower price, say kindly that you do not haggle, and what you can do instead.
@@ -54,7 +54,11 @@ export async function runClerk(purchaseId: string, input: ClerkInput, llm: Llm =
     pool_status: async () =>
       ok({
         available_now: fromCents(poolAvailableCents(p)),
-        recent: store.pool.entries.slice(-4).map((e) => ({ kind: e.kind, amount: e.amount, buyer_country: store.purchases.get(e.purchaseId)?.quote.price.countryName ?? 'unknown' })),
+        recent: store.pool.entries.slice(-4).map((e) =>
+          e.kind === 'seed'
+            ? { kind: 'opening sum from the seller', amount: e.amount }
+            : { kind: e.kind, amount: e.amount, buyer_country: (e.country && priceFor(product, RULES, e.country)?.countryName) || 'unknown' },
+        ),
       }),
     help_limit: async () => {
       const l = limit();

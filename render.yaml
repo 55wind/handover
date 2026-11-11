@@ -21,5 +21,9 @@ services:
         sync: false
       - key: PAYPAL_CLIENT_SECRET
         sync: false
-      - key: DAILY_RUN_LIMIT
+      - key: DAILY_CLERK_LIMIT
+        value: "300"
+      - key: DAILY_SETTLE_LIMIT
+        value: "200"
+      - key: DAILY_CHECKOUT_LIMIT
         value: "400"
