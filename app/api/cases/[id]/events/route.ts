@@ -9,11 +9,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const enc = new TextEncoder();
   const stream = new ReadableStream({
     start(controller) {
-      const send = (data: unknown) => controller.enqueue(enc.encode(`data: ${JSON.stringify(data)}\n\n`));
-      send({ case: publicCase(c) });
-      const off = store.subscribe(id, (event, current) => send({ event, case: publicCase(current) }));
-      const beat = setInterval(() => controller.enqueue(enc.encode(': keep-alive\n\n')), 20_000);
-      req.signal.addEventListener('abort', () => {
+      let off = () => {};
+      let beat: ReturnType<typeof setInterval> | undefined;
+      const stop = () => {
         off();
         clearInterval(beat);
         try {
@@ -21,7 +19,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         } catch {
           /* already closed */
         }
-      });
+      };
+      // A write to a stream the browser has left throws; that ends this stream and nothing else.
+      const write = (text: string) => {
+        try {
+          controller.enqueue(enc.encode(text));
+        } catch {
+          stop();
+        }
+      };
+      const send = (data: unknown) => write(`data: ${JSON.stringify(data)}\n\n`);
+      send({ case: publicCase(c) });
+      off = store.subscribe(id, (event, current) => send({ event, case: publicCase(current) }));
+      beat = setInterval(() => write(': keep-alive\n\n'), 20_000);
+      req.signal.addEventListener('abort', stop);
     },
   });
   return new Response(stream, {

@@ -18,6 +18,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return Response.json({ error: 'This case is already approved.' }, { status: 400 });
   }
   // Not awaited: the run continues in this process and reports through the event stream.
-  void runPhase(id, phase);
+  void runPhase(id, phase).catch(() => {});
   return Response.json({ ok: true }, { status: 202 });
 }

@@ -42,7 +42,13 @@ export const store = {
     const event: Event = { ts: new Date().toISOString(), ...e };
     if (!c) return event;
     c.events.push(event);
-    for (const fn of s.listeners.get(caseId) ?? []) fn(event, c);
+    for (const fn of s.listeners.get(caseId) ?? []) {
+      try {
+        fn(event, c);
+      } catch {
+        /* a broken stream must never stop the run that is reporting to it */
+      }
+    }
     return event;
   },
 
