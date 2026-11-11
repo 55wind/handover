@@ -44,7 +44,24 @@ function need<T>(v: T | undefined): T {
   return v;
 }
 
+/** The path of the page PayPal would return the buyer to. */
+function backPath(args: Args): string {
+  try {
+    return new URL(String((args.application_context as { return_url?: string } | undefined)?.return_url)).pathname;
+  } catch {
+    return '/';
+  }
+}
+
 const captureStatus = (c: Capture) => (c.refunded === 0 ? 'COMPLETED' : c.refunded < c.cents ? 'PARTIALLY_REFUNDED' : 'REFUNDED');
+
+/** Stands in for the buyer approving a new subscription at PayPal. False when there is nothing to approve. */
+export function approveSubscription(id: string): boolean {
+  const sub = s.subs.get(id);
+  if (sub?.status !== 'APPROVAL_PENDING') return false;
+  sub.status = 'ACTIVE';
+  return true;
+}
 
 /** Test hook: the next `exec` of this tool throws this message, as if PayPal had refused. */
 export function failNext(tool: string, message: string): void {
@@ -84,7 +101,8 @@ export const fakeBackend: Backend = {
           status: 'APPROVAL_PENDING',
           plan_id: String(args.plan_id),
           subscriber: args.subscriber,
-          links: [{ href: `https://example.com/fake-paypal/approve/${id}`, rel: 'approve', method: 'GET' }],
+          // A local page plays PayPal's approval screen and sends the browser back, the way PayPal does.
+          links: [{ href: `/api/dev/approve?id=${id}&back=${encodeURIComponent(backPath(args))}`, rel: 'approve', method: 'GET' }],
         };
         s.subs.set(id, created);
         return { ...created };

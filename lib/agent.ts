@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import { ACTIONS_BY_KIND, type Action, type Case, type Item, type MerchantSlug, type Phase } from './types';
 import { store } from './store';
 import { MERCHANTS, SLUGS, isScripted } from './merchants';
-import { deskFor, inventory, readLiveStatus, verifyOutcome } from './desk';
+import { deskFor, inventory, readLiveStatus, replacementApproved, verifyOutcome } from './desk';
 import { fromCents, toCents, validatePlan, type PlanRow } from './guard';
 
 // ---- model client (OpenAI-compatible chat completions; injectable for tests) ----
@@ -348,11 +348,11 @@ async function hold(c: Case, llm: Llm, pause: boolean): Promise<void> {
   });
 }
 
-const WAITS: Action[] = ['take_over', 'pay_from_estate'];
+/** A take-over waits on the family member's approval at PayPal until the old subscription is cancelled. */
+const waits = (item: Item) => item.decided!.action === 'pay_from_estate' || (item.decided!.action === 'take_over' && item.liveStatus !== 'CANCELLED');
 
 function setOutcome(item: Item, verified: boolean, claimed: string, note: string): void {
-  const action = item.decided!.action;
-  const state = verified ? (WAITS.includes(action) ? 'waiting' : 'done') : claimed === 'failed' ? 'failed' : claimed === 'not_completed' ? 'not_completed' : 'blocked';
+  const state = verified ? (waits(item) ? 'waiting' : 'done') : claimed === 'failed' ? 'failed' : claimed === 'not_completed' ? 'not_completed' : 'blocked';
   item.outcome = {
     state,
     refs: { ...item.refs },
@@ -366,11 +366,16 @@ const DONE_TEXT: Record<Action, string> = {
   close: 'closed',
   take_over: 'being taken over; the old subscription is paused until the new one is approved in PayPal',
   pause: 'paused',
-  refund: 'refunded',
+  refund: 'refund issued',
   leave: 'left as it is',
   waive: 'waived; the invoice is cancelled',
   pay_from_estate: 'to be paid from the estate; reminders are stopped and a payment link is ready',
 };
+
+const doneText = (item: Item) =>
+  item.decided!.action === 'take_over' && item.liveStatus === 'CANCELLED'
+    ? 'taken over; the new subscription is approved and the old one is cancelled'
+    : DONE_TEXT[item.decided!.action];
 
 function buildStatement(c: Case, note: string): string {
   let total = 0;
@@ -382,7 +387,7 @@ function buildStatement(c: Case, note: string): string {
     const refundText = refunds.length
       ? ` Refunded $${fromCents(refunds.reduce((sum, r) => sum + toCents(r.amount), 0))} to the original payment method (${refunds.map((r) => item.refs[`refund:${r.captureId}`]).join(', ')}).`
       : '';
-    const status = o.verified ? `${DONE_TEXT[d.action]}. Confirmed with PayPal.` : `not completed. ${o.note}`;
+    const status = o.verified ? `${doneText(item)}. Confirmed with PayPal.` : `not completed. ${o.note}`;
     return `- ${MERCHANTS[item.merchant].name}, ${item.label} (${item.paypalId}): ${status}${o.verified ? refundText : ''}`;
   });
   return [
@@ -413,7 +418,7 @@ async function execute(c: Case, llm: Llm): Promise<void> {
       store.emit(c.id, {
         actor: 'system',
         type: 'outcome',
-        summary: `${MERCHANTS[item.merchant].name}, ${item.label}: ${item.outcome!.verified ? `${DONE_TEXT[item.decided!.action]}. Confirmed with PayPal.` : `${item.outcome!.state}. ${item.outcome!.note}`}`,
+        summary: `${MERCHANTS[item.merchant].name}, ${item.label}: ${item.outcome!.verified ? `${doneText(item)}. Confirmed with PayPal.` : `${item.outcome!.state}. ${item.outcome!.note}`}`,
         detail: { itemId: item.id, outcome: item.outcome },
       });
       return { recorded: item.outcome!.state, confirmed_with_paypal: verified, live_status: item.liveStatus, items_without_outcome: todo().map((i) => i.id) };
@@ -453,9 +458,41 @@ async function execute(c: Case, llm: Llm): Promise<void> {
     const verified = await verifyOutcome(item);
     setOutcome(item, verified, 'not_completed', verified ? '' : 'The agent stopped before finishing this item. Nothing is shown as done that PayPal does not confirm.');
   }
-  c.statement = buildStatement(c, note || 'The steps below were carried out for you.');
+  c.statementNote = note || 'The steps below were carried out for you.';
+  c.statement = buildStatement(c, c.statementNote);
   c.status = 'done';
   store.emit(c.id, { actor: 'system', type: 'status', summary: 'Closing statement ready.' });
+}
+
+/**
+ * After the family member approves a replacement subscription at PayPal, cancels the old one and closes the row.
+ * Plain code, no model: the family already approved the take-over, and the desk still checks the call.
+ */
+export async function finalizeTakeOvers(caseId: string): Promise<void> {
+  const c = store.cases.get(caseId);
+  if (!c || c.running || !c.approvedAt) return;
+  let changed = false;
+  for (const item of c.items) {
+    if (item.decided?.action !== 'take_over' || item.outcome?.state !== 'waiting' || !(await replacementApproved(item))) continue;
+    const r = await deskFor(item.merchant).callTool(
+      'cancel_subscription',
+      { subscription_id: item.paypalId, payload: { reason: `Taken over by family. Handover case ${c.id}.` } },
+      c.id,
+    );
+    if (!r.ok) continue;
+    setOutcome(item, await verifyOutcome(item), 'done', `${c.representative.name} approved the new subscription at PayPal. The old one is cancelled.`);
+    store.emit(c.id, {
+      actor: 'system',
+      type: 'outcome',
+      summary: `${MERCHANTS[item.merchant].name}, ${item.label}: ${item.outcome!.verified ? `${doneText(item)}. Confirmed with PayPal.` : item.outcome!.note}`,
+      detail: { itemId: item.id, outcome: item.outcome },
+    });
+    changed = true;
+  }
+  if (changed) {
+    c.statement = buildStatement(c, c.statementNote ?? '');
+    store.emit(c.id, { actor: 'system', type: 'status', summary: 'Closing statement updated.' });
+  }
 }
 
 // ---- entry point ----

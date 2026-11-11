@@ -82,6 +82,23 @@ async function main() {
   }
   assert(c.statement?.includes('Total refunded'), 'closing statement exists');
   console.log('execute: ok');
+
+  // ---- the family member approves one take-over at PayPal ----
+  if (isFake() && scriptedModel) {
+    const { finalizeTakeOvers } = await import('../lib/agent');
+    const { approveSubscription } = await import('../lib/paypal-fake');
+    const lumen = byLabel(c, 'lumen', /family/i);
+    await finalizeTakeOvers(c.id);
+    assert.equal(lumen.outcome!.state, 'waiting', 'nothing changes before the approval');
+    assert(approveSubscription(lumen.refs.newSubscriptionId));
+    await finalizeTakeOvers(c.id);
+    assert.equal(lumen.outcome!.state, 'done');
+    assert.equal(lumen.outcome!.verified, true);
+    assert.equal(lumen.liveStatus, 'CANCELLED');
+    assert.equal(byLabel(c, 'harborlight', /gift/i).outcome!.state, 'waiting', 'the other take-over still waits');
+    assert(c.statement?.includes('taken over; the new subscription is approved'));
+    console.log('take-over approval: ok');
+  }
   console.log(c.statement);
 
   // ---- run 2: a PayPal failure mid-execution blocks one row and the rest still finish ----

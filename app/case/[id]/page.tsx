@@ -64,6 +64,20 @@ export default function CasePage() {
     };
   }, [base]);
 
+  /** Asks the server to complete any take-over the family member has approved at PayPal. */
+  async function checkApproval() {
+    const r = await api(`${base}/finalize`, 'POST');
+    if (r.status === 200) setCase(r.data);
+    return r.status === 200 ? '' : (r.data?.error ?? FAILED);
+  }
+  // PayPal sends the family member back here with the subscription they approved.
+  useEffect(() => {
+    if (load !== 'ready' || !new URLSearchParams(window.location.search).has('subscription_id')) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    checkApproval();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load]);
+
   /** Sends one request, or a short chain of them, with the controls disabled meanwhile. */
   async function send(steps: () => Promise<string>) {
     setSending(true);
@@ -168,7 +182,7 @@ export default function CasePage() {
           onEdit={() => setEditing(true)}
         />
       )}
-      {approved && <Done c={c} locked={locked} error={error} onRetry={() => send(() => run('execute'))} />}
+      {approved && <Done c={c} locked={locked} error={error} onRetry={() => send(() => run('execute'))} onCheck={() => send(checkApproval)} />}
     </div>
   );
 }

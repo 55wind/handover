@@ -120,6 +120,7 @@ export interface Case {
   notes: string[]; // agent remarks for the family, e.g. a near match it left out
   approvedAt?: string;
   statement?: string;
+  statementNote?: string; // the agent's covering note, kept so the statement can be rebuilt
   events: Event[];
 }
 

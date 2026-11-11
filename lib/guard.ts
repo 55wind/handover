@@ -135,6 +135,7 @@ export interface GuardInput {
   item?: Item; // the case item the target id belongs to; absent when the id is not this customer's
   merchant: Merchant;
   done: Set<string>; // "tool:targetId" of calls that already went through for this case
+  replacementActive?: boolean; // take-over only: the family member's new subscription is approved at PayPal
 }
 
 const READ = ['show_subscription_details', 'get_invoice', 'get_order', 'get_refund'];
@@ -146,7 +147,7 @@ const NEEDS = new Map<string, Action>([
   ['cancel_sent_invoice', 'waive'],
 ]);
 
-export function guard({ tool, targetId, amountCents, c, item, merchant, done }: GuardInput): { allow: true } | { allow: false; reason: string } {
+export function guard({ tool, targetId, amountCents, c, item, merchant, done, replacementActive }: GuardInput): { allow: true } | { allow: false; reason: string } {
   const deny = (reason: string) => ({ allow: false as const, reason });
   const need = NEEDS.get(tool);
   const irreversible = !!need || tool === 'create_refund';
@@ -162,6 +163,12 @@ export function guard({ tool, targetId, amountCents, c, item, merchant, done }: 
 
   if (need) {
     if (item.decided?.action === need) return { allow: true };
+    // A take-over ends with the old subscription cancelled, but only once the replacement is approved.
+    if (tool === 'cancel_subscription' && item.decided?.action === 'take_over') {
+      return replacementActive
+        ? { allow: true }
+        : deny(`Item ${item.id} is being taken over. Its old subscription can be cancelled only after the replacement is approved at PayPal.`);
+    }
     return deny(`${tool} needs the approved action for item ${item.id} to be ${need}, but it is ${item.decided?.action ?? 'not decided'}.`);
   }
 

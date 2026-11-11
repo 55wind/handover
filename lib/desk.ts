@@ -201,7 +201,8 @@ export function deskFor(slug: MerchantSlug): Desk {
       if (name === 'cancel_sent_invoice') send = { invoice_id: targetId, send_to_recipient: false, ...(typeof args.note === 'string' ? { note: args.note } : {}) };
 
       // The guard judges the call as it will be sent.
-      const verdict = guard({ tool: name, targetId, amountCents: line && toCents(line.amount), c, item, merchant, done: store.doneFor(caseId) });
+      const replacementActive = name === 'cancel_subscription' && item?.decided?.action === 'take_over' && (await replacementApproved(item));
+      const verdict = guard({ tool: name, targetId, amountCents: line && toCents(line.amount), c, item, merchant, done: store.doneFor(caseId), replacementActive });
       if (!verdict.allow || !item) {
         const reason = verdict.allow ? `${targetId} is not this customer's at ${m}.` : verdict.reason;
         store.log(slug, { caseId, tool: name, target: targetId, ok: false, denied: true, summary: reason, refs: {} });
@@ -286,6 +287,15 @@ export function deskFor(slug: MerchantSlug): Desk {
 
 // ---- reading PayPal back --------------------------------------------------
 
+const APPROVED = ['ACTIVE', 'APPROVED'];
+/** Take-over: has the family member approved the replacement subscription at PayPal? Reads quietly, logs nothing. */
+export async function replacementApproved(item: Item): Promise<boolean> {
+  const id = item.refs.newSubscriptionId;
+  if (!id) return false;
+  const r: Json = await backendFor(item.merchant).exec('show_subscription_details', { subscription_id: id }).catch(() => null);
+  return APPROVED.includes(r?.status);
+}
+
 /** The object's status as PayPal reports it now. */
 export async function readLiveStatus(item: Item): Promise<string> {
   try {
@@ -328,8 +338,11 @@ export async function verifyOutcome(item: Item, expect?: 'SUSPENDED' | 'ACTIVE')
     case 'refund':
       return refunded();
     case 'take_over': {
+      // Either waiting (old one paused, replacement created) or finished (replacement approved, old one cancelled).
       const replacement = item.refs.newSubscriptionId;
-      return live === 'SUSPENDED' && !!replacement && !!(await reads('show_subscription_details', { subscription_id: replacement }))?.id && (await refunded());
+      const r = replacement ? await reads('show_subscription_details', { subscription_id: replacement }) : null;
+      const state = live === 'SUSPENDED' || (live === 'CANCELLED' && APPROVED.includes(r?.status));
+      return state && !!r?.id && (await refunded());
     }
     case 'waive':
       return live === 'CANCELLED';

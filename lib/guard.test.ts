@@ -341,8 +341,16 @@ test('guard denies irreversible writes until the plan is approved', () => {
 test('guard: cancel_subscription needs an approved close', () => {
   const it = approved();
   allows(call('cancel_subscription', 'I-SUB1', it['iron-1']));
-  denies(call('cancel_subscription', 'I-LUM1', it['lumen-1']), /close/);
   denies(call('cancel_subscription', 'I-SUB1', { ...it['iron-1'], decided: undefined }), /close/);
+});
+
+test('guard: a take-over may cancel the old subscription only once the replacement is approved', () => {
+  const it = approved();
+  denies(call('cancel_subscription', 'I-LUM1', it['lumen-1']), /replacement is approved/);
+  denies(call('cancel_subscription', 'I-LUM1', it['lumen-1'], { replacementActive: false }), /replacement is approved/);
+  allows(call('cancel_subscription', 'I-LUM1', it['lumen-1'], { replacementActive: true }));
+  // The flag means nothing for an item that is not being taken over.
+  denies(call('cancel_subscription', 'I-SUB1', { ...it['iron-1'], decided: { action: 'pause', refunds: [] } }, { replacementActive: true }), /close/);
 });
 
 test('guard: create_subscription needs an approved take_over', () => {

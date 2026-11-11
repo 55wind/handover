@@ -391,7 +391,7 @@ function Statement({ text }: { text: string }) {
   );
 }
 
-export function Done({ c, locked, error, onRetry }: { c: Case; locked: boolean; error: string; onRetry: () => void }) {
+export function Done({ c, locked, error, onRetry, onCheck }: { c: Case; locked: boolean; error: string; onRetry: () => void; onCheck: () => void }) {
   // Approved and back under review means the run stopped with an error before every row had an outcome.
   const stopped = c.status === 'review';
   const verified = c.items.filter((i) => i.outcome?.verified);
@@ -420,6 +420,20 @@ export function Done({ c, locked, error, onRetry }: { c: Case; locked: boolean; 
               {error}
             </p>
           )}
+        </div>
+      )}
+
+      {waiting && (
+        <div className="stack--tight no-print">
+          <p>
+            A take-over starts when {c.representative.name} approves the new subscription at PayPal. The old one stays paused until then, and is
+            cancelled as soon as the new one is approved.
+          </p>
+          <div className="actions">
+            <button className="btn btn--quiet" type="button" onClick={onCheck} disabled={locked}>
+              Check for approval
+            </button>
+          </div>
         </div>
       )}
 
