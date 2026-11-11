@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.env
+.env.local
+.env*.local
+.gstack/
+.data/
+out/
+*.tsbuildinfo
+next-env.d.ts
+media/raw/
