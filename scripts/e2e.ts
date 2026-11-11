@@ -160,6 +160,21 @@ async function main() {
     console.log(`misbehaving model: ok (${denied.length} calls refused, nothing outside the approved plan went through)`);
     for (const d of denied) console.log(`  refused: ${d.summary.slice(0, 150)}`);
   }
+  // ---- run 4: a second case pointed at the first case's customer finds nothing to act on ----
+  if (isFake() && scriptedModel) {
+    const { applyNotice } = await import('../lib/cases');
+    const a = await seedDemoCase();
+    const b = await seedDemoCase();
+    assert.equal(
+      applyNotice(b, { fullName: a.deceased.fullName, emails: a.deceased.emails, dateOfDeath: a.deceased.dateOfDeath, representative: b.representative, wishes: b.wishes, documentText: a.document.text }),
+      null,
+    );
+    await runPhase(b.id, 'intake', llm);
+    assert.equal(b.items.length, 0, "another case's customer is not this case's to settle");
+    await runPhase(a.id, 'intake', llm);
+    assert.equal(a.items.length, 5);
+    console.log('two cases, one customer: ok (the second case sees no accounts)');
+  }
   console.log('E2E PASSED');
 }
 

@@ -50,6 +50,7 @@ function view(c: Case) {
       },
     })),
     closing_statement: c.statement,
+    ...(c.running ? { agent_is_working: `The agent is still working (${c.running}). Call get_case again in a few seconds.` } : {}),
     ...(c.status !== 'done' && lastError ? { last_error: lastError.summary } : {}),
   };
 }
@@ -64,7 +65,13 @@ const must = (error: string | null) => {
   if (error) throw new Error(error);
 };
 async function run(c: Case, phase: Phase) {
-  await runPhase(c.id, phase);
+  if (!store.takeRunSlot(c.id)) throw new Error('This case has used its allowance of agent runs. Start a new demo case.');
+  const done = runPhase(c.id, phase).catch(() => {});
+  // Many MCP clients give up on a request that stays silent for about a minute. The run carries on either way,
+  // and get_case shows where it stands.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([done, new Promise((resolve) => (timer = setTimeout(resolve, 45_000)))]);
+  clearTimeout(timer);
   return view(c);
 }
 

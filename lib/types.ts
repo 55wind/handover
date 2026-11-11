@@ -50,6 +50,8 @@ export interface RecordItem {
   charges: Charge[]; // subscription: period charges the merchant recorded; charge: one entry; invoice: none
 }
 export interface CustomerRecord {
+  /** Demo records are created for one case and only that case may act on them. */
+  caseId?: string;
   customerId: string;
   fullName: string;
   email: string;

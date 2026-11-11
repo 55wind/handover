@@ -75,7 +75,7 @@ export interface PlanRow {
   question?: string;
 }
 
-const CAN_REFUND: Action[] = ['close', 'take_over', 'refund'];
+export const CAN_REFUND: Action[] = ['close', 'take_over', 'refund'];
 
 /** Rows come from the model or the family. Only rows without an error become decisions; refund amounts are always ours. */
 export function validatePlan(
@@ -140,6 +140,8 @@ export interface GuardInput {
 
 const READ = ['show_subscription_details', 'get_invoice', 'get_order', 'get_refund'];
 const REVERSIBLE = ['suspend_subscription', 'activate_subscription', 'cancel_invoice_auto_reminder', 'generate_invoice_qr_code'];
+/** Tools that change the item's own PayPal object and so must be given exactly that id. */
+const SELF = ['suspend_subscription', 'activate_subscription', 'cancel_subscription', 'cancel_invoice_auto_reminder', 'cancel_sent_invoice', 'generate_invoice_qr_code'];
 /** Irreversible tools and the approved action each one carries out. create_refund is checked per capture instead. */
 const NEEDS = new Map<string, Action>([
   ['cancel_subscription', 'close'],
@@ -154,6 +156,9 @@ export function guard({ tool, targetId, amountCents, c, item, merchant, done, re
 
   if (!irreversible && !READ.includes(tool) && !REVERSIBLE.includes(tool)) return deny(`${tool} is not a tool this desk permits.`);
   if (!item || item.merchant !== merchant.slug) return deny(`${targetId} is not this customer's at ${merchant.name}, so it cannot be read or changed.`);
+  // A write on a subscription or an invoice must name the object on file, not something related to it
+  // (for example the replacement subscription created for a take-over).
+  if (SELF.includes(tool) && targetId !== item.paypalId) return deny(`${tool} must name ${item.paypalId}, the object on file for item ${item.id}.`);
   // Reversible writes may repeat: pause, resume, pause must work, and a repeat cannot move money.
   if (!irreversible) return { allow: true };
 

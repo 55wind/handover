@@ -10,6 +10,7 @@ const iso = (t: number) => new Date(t).toISOString().slice(0, 10);
 /** Creates the demo estate (spec section 5) on PayPal, files it in the merchants' records and opens a case for it. */
 export async function seedDemoCase(): Promise<Case> {
   const run = randomBytes(3).toString('hex');
+  const caseId = randomBytes(9).toString('base64url');
   const died = Date.parse(iso(Date.now())) - 12 * DAY; // UTC midnight, 12 days ago
   const at = (offset: number) => iso(died + offset * DAY);
   const payer = { payerName: 'Daniel Reyes', payerEmail: `daniel.reyes.${run}@example.com` };
@@ -54,7 +55,7 @@ export async function seedDemoCase(): Promise<Case> {
   ]);
   for (const [slug, items] of Object.entries({ lumen, ironwood, harborlight }) as [MerchantSlug, RecordItem[]][]) {
     const records = store.records.get(slug) ?? [];
-    records.push({ customerId: `${slug}-customer-${run}`, fullName: payer.payerName, email: payer.payerEmail, items });
+    records.push({ caseId, customerId: `${slug}-customer-${run}`, fullName: payer.payerName, email: payer.payerEmail, items });
     // A near match the agent must leave alone: same family name, another person.
     if (slug === 'ironwood' && !records.some((r) => r.email === 'daniela.reyes@example.com'))
       records.push({ customerId: 'ironwood-customer-decoy', fullName: 'Daniela Reyes', email: 'daniela.reyes@example.com', items: [] });
@@ -63,7 +64,7 @@ export async function seedDemoCase(): Promise<Case> {
 
   const diedOn = new Date(died).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
   const c: Case = {
-    id: randomBytes(9).toString('base64url'),
+    id: caseId,
     createdAt: new Date().toISOString(),
     demo: true,
     tier: 'filed',
@@ -84,6 +85,17 @@ export async function seedDemoCase(): Promise<Case> {
     events: [],
   };
   store.cases.set(c.id, c);
+  // If this sandbox account could not create something, say so on the case instead of showing a thinner estate without a word.
+  const missing = new Set<string>();
+  for (const slug of ['lumen', 'ironwood', 'harborlight'] as MerchantSlug[]) {
+    for (const what of ['subscription', 'charge', 'invoice'] as Primitive[]) {
+      const why = seedFailure(slug, what);
+      if (why) missing.add(`${what}: ${why}`);
+    }
+  }
+  for (const line of missing) {
+    store.emit(c.id, { actor: 'system', type: 'error', summary: `This PayPal sandbox account could not create a ${line}. The demo estate is smaller than usual.` });
+  }
   return c;
 }
 

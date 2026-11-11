@@ -313,3 +313,23 @@ test('an invoice can be waived, or kept with a link to pay it', async () => {
 test('probe reports each primitive', async () => {
   assert.deepEqual(await seed.probe('lumen'), { invoice: 'ok', 'card order': 'ok', 'card subscription': 'ok' });
 });
+
+test('the refund bound is per capture: what was refunded since the plan was made counts against it', async () => {
+  const c = await demo();
+  const locker = pick(c, 'ironwood', 'charge');
+  const captureId = locker.paypalId;
+  locker.decided = { action: 'refund', refunds: [{ captureId, amount: locker.charges[0].refundable }] };
+  approve(c);
+  // Someone else has refunded this capture in the meantime, as far as the policy allows.
+  store.refunded.set(captureId, 3616);
+  denied(await call(c, 'ironwood', 'create_refund', { capture_id: captureId }), /already been refunded/);
+  assert.equal(store.refunded.get(captureId), 3616);
+  assert.equal(locker.refs[`refund:${captureId}`], undefined);
+});
+
+test('a write must name the object on file, not something related to it', async () => {
+  const c = await demo();
+  const sub = pick(c, 'lumen', 'subscription');
+  sub.refs.newSubscriptionId = 'I-REPLACEMENT1';
+  denied(await call(c, 'lumen', 'suspend_subscription', { subscription_id: 'I-REPLACEMENT1', reason: 'x' }), /must name/);
+});

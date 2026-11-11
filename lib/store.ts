@@ -10,6 +10,7 @@ interface State {
   done: Map<string, Set<string>>; // case id -> "tool:targetId" already executed
   listeners: Map<string, Set<Listener>>;
   demo: { day: string; n: number };
+  runs: Map<string, number>; // case id -> agent runs started
 }
 
 // ponytail: all state lives in this process and is lost on restart; move to a database if cases must outlive a deploy.
@@ -22,6 +23,7 @@ const s: State = (g.__handover ??= {
   done: new Map(),
   listeners: new Map(),
   demo: { day: '', n: 0 },
+  runs: new Map(),
 });
 
 export const store = {
@@ -63,6 +65,15 @@ export const store = {
     const list = s.ledger.get(slug) ?? [];
     list.push({ ts: new Date().toISOString(), ...entry });
     s.ledger.set(slug, list);
+  },
+
+  /** False once this case has used its allowance of agent runs. Every run costs model calls. */
+  takeRunSlot(caseId: string): boolean {
+    s.runs ??= new Map(); // state created before this field existed
+    const n = s.runs.get(caseId) ?? 0;
+    if (n >= 12) return false;
+    s.runs.set(caseId, n + 1);
+    return true;
   },
 
   /** False once today's demo allowance is used up. */

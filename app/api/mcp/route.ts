@@ -1,8 +1,9 @@
+import { readJson } from '@/lib/cases';
 import { handleRpc } from '@/lib/mcp';
 
 // MCP over Streamable HTTP, stateless: each POST carries JSON-RPC and gets JSON back. No server-initiated stream.
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => null);
+  const body = (await readJson(req, 200_000)) as Parameters<typeof handleRpc>[0] | Parameters<typeof handleRpc>[0][] | null;
   if (body === null) {
     return Response.json({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } }, { status: 400 });
   }

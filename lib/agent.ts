@@ -168,7 +168,10 @@ async function loop(
   for (let turn = 0; turn < 40 && !done(); turn++) {
     const reply = await llm(messages, tools);
     const calls = reply.tool_calls ?? [];
-    messages.push({ role: 'assistant', content: reply.content, ...(calls.length ? { tool_calls: calls } : {}) });
+    // A reply with neither text nor tool calls is not sent back: providers reject an empty assistant message.
+    if (calls.length || reply.content?.trim()) {
+      messages.push({ role: 'assistant', content: reply.content, ...(calls.length ? { tool_calls: calls } : {}) });
+    }
     if (reply.content?.trim()) store.emit(c.id, { actor: 'agent', type: 'note', summary: reply.content.trim() });
     if (!calls.length) {
       const text = nudge();
@@ -180,7 +183,8 @@ async function loop(
       calls.map(async (call) => {
         let args: Record<string, unknown> = {};
         try {
-          args = JSON.parse(call.function.arguments || '{}');
+          const parsed = JSON.parse(call.function.arguments || '{}');
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) args = parsed;
         } catch {
           /* malformed arguments are treated as empty; the tool will say what is missing */
         }
@@ -260,6 +264,18 @@ const SAFE_DEFAULT: Record<Item['kind'], Action> = { subscription: 'pause', char
 async function plan(c: Case, llm: Llm): Promise<void> {
   if (c.approvedAt) throw new Error('This case is already approved.');
   c.status = 'planning';
+  const previous = { items: c.items, notes: c.notes };
+  try {
+    await draftPlan(c, llm);
+  } catch (e) {
+    // A failed attempt must not leave half a plan behind: the earlier one, if any, stays as it was.
+    c.items = previous.items;
+    c.notes = previous.notes;
+    throw e;
+  }
+}
+
+async function draftPlan(c: Case, llm: Llm): Promise<void> {
   const inv = inventory(c);
   c.items = inv.items;
   c.notes = inv.nearMatches.map(
@@ -369,7 +385,7 @@ const DONE_TEXT: Record<Action, string> = {
   refund: 'refund issued',
   leave: 'left as it is',
   waive: 'waived; the invoice is cancelled',
-  pay_from_estate: 'to be paid from the estate; reminders are stopped and a payment link is ready',
+  pay_from_estate: 'to be paid from the estate; a payment link is ready',
 };
 
 const doneText = (item: Item) =>
@@ -380,15 +396,17 @@ const doneText = (item: Item) =>
 function buildStatement(c: Case, note: string): string {
   let total = 0;
   const lines = c.items.map((item) => {
-    const o = item.outcome!;
+    const o = item.outcome;
     const d = item.decided!;
+    // A refund id only exists when PayPal issued the refund, so these count whatever became of the rest of the row.
     const refunds = d.refunds.filter((r) => item.refs[`refund:${r.captureId}`]);
-    if (o.verified) total += refunds.reduce((sum, r) => sum + toCents(r.amount), 0);
+    const sum = refunds.reduce((n, r) => n + toCents(r.amount), 0);
+    total += sum;
     const refundText = refunds.length
-      ? ` Refunded $${fromCents(refunds.reduce((sum, r) => sum + toCents(r.amount), 0))} to the original payment method (${refunds.map((r) => item.refs[`refund:${r.captureId}`]).join(', ')}).`
+      ? ` Refunded $${fromCents(sum)} to the original payment method (${refunds.map((r) => item.refs[`refund:${r.captureId}`]).join(', ')}).`
       : '';
-    const status = o.verified ? `${doneText(item)}. Confirmed with PayPal.` : `not completed. ${o.note}`;
-    return `- ${MERCHANTS[item.merchant].name}, ${item.label} (${item.paypalId}): ${status}${o.verified ? refundText : ''}`;
+    const status = o?.verified ? `${doneText(item)}. Confirmed with PayPal.` : `not completed. ${o?.note ?? 'It was not carried out.'}`;
+    return `- ${MERCHANTS[item.merchant].name}, ${item.label} (${item.paypalId}): ${status}${refundText}`;
   });
   return [
     'Closing statement',
@@ -453,10 +471,19 @@ async function execute(c: Case, llm: Llm): Promise<void> {
     () => finished && !todo().length,
     () => (todo().length ? `These items have no recorded outcome yet: ${todo().map((i) => i.id).join(', ')}. Finish them and record each outcome.` : finished ? null : 'Call finish with the note for the family.'),
   );
-  // Anything the model left unrecorded is judged by PayPal's state alone.
-  for (const item of todo()) {
+  // PayPal has the last word on every row. A row the model never recorded, or recorded before it had acted,
+  // is judged by what PayPal shows now.
+  for (const item of c.items) {
     const verified = await verifyOutcome(item);
-    setOutcome(item, verified, 'not_completed', verified ? '' : 'The agent stopped before finishing this item. Nothing is shown as done that PayPal does not confirm.');
+    const o = item.outcome;
+    if (!o) {
+      setOutcome(item, verified, 'not_completed', verified ? 'Completed as approved.' : 'The agent stopped before finishing this item. Nothing is shown as done that PayPal does not confirm.');
+    } else if (o.verified !== verified) {
+      setOutcome(item, verified, verified ? 'done' : 'blocked', verified ? 'Completed as approved.' : o.note);
+    } else {
+      o.refs = { ...item.refs };
+      o.link = item.refs.approveLink ?? item.refs.payLink;
+    }
   }
   c.statementNote = note || 'The steps below were carried out for you.';
   c.statement = buildStatement(c, c.statementNote);
@@ -470,7 +497,7 @@ async function execute(c: Case, llm: Llm): Promise<void> {
  */
 export async function finalizeTakeOvers(caseId: string): Promise<void> {
   const c = store.cases.get(caseId);
-  if (!c || c.running || !c.approvedAt) return;
+  if (!c || c.running || c.status !== 'done') return;
   let changed = false;
   for (const item of c.items) {
     if (item.decided?.action !== 'take_over' || item.outcome?.state !== 'waiting' || !(await replacementApproved(item))) continue;

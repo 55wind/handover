@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { buildItems, guard, matchCustomers, toCents } from './guard';
+import { buildItems, guard, matchCustomers, refundableCents, toCents } from './guard';
 import { MERCHANTS, SLUGS } from './merchants';
 import { backendFor, names, toolkitTools } from './paypal';
 import { store } from './store';
@@ -12,14 +12,13 @@ type Json = any; // PayPal JSON, read field by field
 // ---- what the merchants have on file --------------------------------------
 
 function recordsAt(slug: MerchantSlug, c: Case) {
-  const { owned, nearMatches } = matchCustomers(store.records.get(slug) ?? [], c.deceased);
-  // A customer another case has claimed is that family's business, not a near match here. Every demo run seeds its own Daniel Reyes.
-  const claimed = new Set([...store.cases.values()].filter((x) => x !== c).flatMap((x) => x.deceased.emails.map((e) => e.trim().toLowerCase())));
+  // A record seeded for another case is that family's business: it is neither owned nor a near match here,
+  // whatever emails this case's notice lists. Otherwise two cases could settle the same account twice.
+  const visible = (store.records.get(slug) ?? []).filter((r) => !r.caseId || r.caseId === c.id);
+  const { owned, nearMatches } = matchCustomers(visible, c.deceased);
   return {
     customers: owned.map((record) => ({ record, items: buildItems(MERCHANTS[slug], [record], c.deceased.dateOfDeath, store.refunded) })),
-    nearMatches: nearMatches
-      .filter(({ record }) => !claimed.has(record.email.trim().toLowerCase()))
-      .map(({ record, reason }) => ({ merchant: slug, fullName: record.fullName, email: record.email, reason })),
+    nearMatches: nearMatches.map(({ record, reason }) => ({ merchant: slug, fullName: record.fullName, email: record.email, reason })),
   };
 }
 
@@ -188,10 +187,10 @@ export function deskFor(slug: MerchantSlug): Desk {
 
       // Money, the subscriber and who gets email are set here, never by the model.
       const line = name === 'create_refund' ? item?.decided?.refunds.find((r) => r.captureId === targetId) : undefined;
-      if (line) send = { capture_id: targetId, amount: { currency_code: 'USD', value: line.amount }, ...(typeof args.note_to_payer === 'string' ? { note_to_payer: args.note_to_payer } : {}) };
       if (name === 'create_subscription' && item?.planId) {
         targetId = item.planId; // one key per plan, however the model named the item
-        const back = `${process.env.APP_URL ?? 'http://localhost:3000'}/case/${caseId}`;
+        // RENDER_EXTERNAL_URL is set by the host, so the return address is right there even when APP_URL was forgotten.
+        const back = `${process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}/case/${caseId}`;
         send = {
           plan_id: item.planId,
           subscriber: { name: names(c.representative.name), email_address: c.representative.email },
@@ -210,12 +209,25 @@ export function deskFor(slug: MerchantSlug): Desk {
         return { ok: false, denied: true, error: reason };
       }
 
+      // The bound is per capture, not per case: what was refunded since the plan was made counts against it.
+      const charge = line && item?.charges.find((ch) => ch.captureId === targetId);
+      if (line && charge && refundableCents(charge, c.deceased.dateOfDeath, merchant.policy, store.refunded.get(targetId) ?? 0) < toCents(line.amount)) {
+        const reason = `Capture ${targetId} has already been refunded as far as ${m}'s policy allows.`;
+        store.log(slug, { caseId, tool: name, target: targetId, ok: false, denied: true, summary: reason, refs: {} });
+        store.emit(caseId, { actor: 'guard', type: 'denied', summary: `Refused at ${m}: ${reason}`, detail: { tool: name, args, merchant: slug } });
+        return { ok: false, denied: true, error: reason };
+      }
+      if (line) send = { capture_id: targetId, amount: { currency_code: 'USD', value: line.amount }, ...(typeof args.note_to_payer === 'string' ? { note_to_payer: args.note_to_payer } : {}) };
+
       const backend = backendFor(slug);
       const key = `${name}:${targetId}`;
       const once = ONCE.includes(name);
       const requestId = once ? createHash('sha256').update(`${caseId}|${item.id}|${name}|${targetId}`).digest('hex').slice(0, 32) : undefined;
       // Taken before the call, not after: the model's tool calls run side by side, and an identical twin must meet the guard's "already done".
       if (once) store.doneFor(caseId).add(key);
+      // The same goes for the money: the refunded total is reserved before PayPal is called and given back if PayPal refuses.
+      const reserved = line ? toCents(line.amount) : 0;
+      if (reserved) store.refunded.set(targetId, (store.refunded.get(targetId) ?? 0) + reserved);
       try {
         let data = await backend.exec(name, send, requestId);
         const r: Json = data ?? {};
@@ -251,7 +263,6 @@ export function deskFor(slug: MerchantSlug): Desk {
             break;
           case 'create_refund':
             if (typeof r.id === 'string') refs[`refund:${targetId}`] = r.id;
-            store.refunded.set(targetId, (store.refunded.get(targetId) ?? 0) + toCents(line!.amount));
             summary = `${m}: refunded $${line!.amount} on capture ${targetId} to the payment method that paid, refund ${r.id}.`;
             break;
           case 'create_subscription': {
@@ -275,6 +286,11 @@ export function deskFor(slug: MerchantSlug): Desk {
         return ok(targetId, summary, data, refs);
       } catch (e) {
         if (once) store.doneFor(caseId).delete(key); // it did not happen, so it may be tried again
+        if (reserved) {
+          const left = (store.refunded.get(targetId) ?? 0) - reserved;
+          if (left > 0) store.refunded.set(targetId, left);
+          else store.refunded.delete(targetId);
+        }
         const error = (e as Error).message;
         const summary = `${m}: ${name} on ${targetId} failed. PayPal said: ${error}`;
         store.log(slug, { caseId, tool: name, target: targetId, ok: false, denied: false, summary, refs: {} });
