@@ -53,3 +53,11 @@ test('mcp: an assistant can take a case from notice to closing statement', async
 
   assert.match((await call('get_case', { case_id: 'missing' })).text, /no longer available/);
 });
+
+test('request bodies are read up to a limit and no further', async () => {
+  const { readJson } = await import('./cases');
+  const post = (body: string) => new Request('http://localhost/api/mcp', { method: 'POST', body });
+  assert.deepEqual(await readJson(post('{"a":1}'), 100), { a: 1 });
+  assert.equal(await readJson(post(`{"x":"${'a'.repeat(500)}"}`), 100), null);
+  assert.equal(await readJson(post('not json'), 100), null);
+});
