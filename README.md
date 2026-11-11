@@ -36,11 +36,12 @@ The three merchants have different policies on purpose, and Ironwood Gym also ha
 
 ## How it is built
 
-```
-family ── notice ──▶ agent (LLM tool loop) ──▶ merchant desk ──▶ PayPal sandbox
-                         │                       guard (code)
-                         ◀── plan, outcomes ──   policy, ownership, refund bounds
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.png">
+  <img alt="Architecture: the family or their assistant files a notice with the Handover app; the executor agent calls a language model and each merchant's desk; the desk's guard checks every call against the merchant's policy before the PayPal Agent Toolkit calls the PayPal sandbox, and every call is logged in the merchant's ledger." src="docs/architecture.png" width="760">
+</picture>
+
+The blue path is a settlement: one notice, the agent's tool calls, the guard, then PayPal. The editable source of the diagram is [docs/architecture.html](docs/architecture.html).
 
 - **Agent** (`lib/agent.ts`): an OpenAI-compatible chat-completions tool loop with five phases: intake, plan, pause, resume, execute. It has no PayPal credentials. Its tools are whatever the merchant desks list for the current phase.
 - **Merchant desk** (`lib/desk.ts`): one per merchant. It lists tools, checks every call against the guard, then calls PayPal with that merchant's credentials and records the call in the merchant's ledger.
