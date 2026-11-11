@@ -8,7 +8,18 @@ A price tag says the same number everywhere, but it does not cost the same. A $4
 
 Fair Hour lets a small seller of digital goods price in hours of life instead of dollars. A buyer anywhere is quoted the amount that costs them a comparable share of an hour of local income, inside limits the seller sets. The buyer's PayPal wallet proves where they live: the payment is only authorised at first, the agent reads the payer's country from PayPal, and it captures the payment if the country matches the quote or releases it if it does not. Nothing is taken from a buyer who is quoted the wrong price.
 
-One-line pitch: **Priced in hours, not dollars. Proven by the wallet, not the IP address.**
+One-line pitch: **Priced in hours, not dollars. A clerk who listens. Proven by the wallet, not the IP address.**
+
+### Who does what
+
+A neighbourhood shopkeeper knows who is a student and who has had a hard month, and takes a little off. Online checkout has no such discretion. Fair Hour gives that discretion to an AI clerk, and gives the parts that must not be fooled to PayPal and to code.
+
+| Part | Who | What |
+|---|---|---|
+| Listening and judging | The clerk (LLM) | Opens the conversation in the buyer's language, explains the price in hours, hears a situation, reads a document in any country's format, decides whether and how much to help, records a gift. It does not bargain. |
+| Proof of residence | PayPal | Reports the country the paying wallet is registered in. |
+| Limits | Code | Every amount, the country match, the help caps, the pool balance. The seller never pays for help: it comes from a pool other buyers funded. |
+| Settlement | The settlement agent (LLM with tools) | Reads the order, holds, takes or releases the payment, and tells the buyer what happened in their language. Code refuses any step the rules do not allow and releases whatever is left open. |
 
 ### Why this, for this hackathon
 
@@ -72,7 +83,7 @@ An AI shopping agent does the same through MCP: `get_price`, `start_checkout`, `
 1. Amounts come only from the quote. The order amount equals the quote's fair price, minus any granted help, plus any gift.
 2. Capture is allowed only when PayPal's payer country equals the quote's country, the wallet has not already bought this product, and the amount equals what was authorised.
 3. Anything else is voided. If the agent stops early, code voids what is still open. It never captures on its own.
-4. Help from the pool: at most `help.maxPercent` of the list price, never more than the pool holds, at most `help.perMonth` grants a month, and the buyer still pays at least one dollar.
+4. Help from the pool: at most `help.maxPercent` of the list price on what a buyer says alone (20% in the demo), at most `help.maxPercentWithProof` when the clerk has read a document that supports it (50%), never more than the pool holds, at most `help.perMonth` grants a month, and the buyer still pays at least one dollar. The clerk cannot tell whether a document is genuine; the caps bound that risk. The image is not kept.
 5. A gift goes to the pool only after its payment is captured.
 6. Every decision is logged with PayPal's ids. The UI says "captured" only after reading the capture back from PayPal.
 
@@ -91,7 +102,9 @@ lib/seller.ts          the demo seller, products and rules
 lib/paypal.ts          real backend: create/authorize/capture/void/refund, order details
 lib/paypal-fake.ts     development backend with a local approval page
 lib/desk.ts            the seller's desk: tools the agents may call, each checked by pricing rules
-lib/agent.ts           clerk (conversation) and settlement (tool loop)
+lib/agent.ts           model client, shared tool loop, settlement agent
+lib/clerk.ts           the clerk: greeting, conversation, documents, help and gifts
+lib/shop.ts            quotes, purchases, checkout, ledger, refunds (shared by routes and MCP)
 lib/mcp.ts             the price desk for AI shoppers
 app/page.tsx                     landing
 app/buy/[product]/page.tsx       quote, clerk, pay
