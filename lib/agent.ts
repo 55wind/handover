@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { ACTIONS_BY_KIND, type Action, type Case, type Item, type MerchantSlug, type Phase } from './types';
 import { store } from './store';
-import { MERCHANTS, SLUGS } from './merchants';
+import { MERCHANTS, SLUGS, isScripted } from './merchants';
 import { deskFor, inventory, readLiveStatus, verifyOutcome } from './desk';
 import { fromCents, toCents, validatePlan, type PlanRow } from './guard';
 
@@ -27,7 +27,12 @@ export type LlmMessage =
 export type Llm = (messages: LlmMessage[], tools: LlmTool[]) => Promise<LlmReply>;
 
 let client: OpenAI | undefined;
+let standIn: Llm | undefined;
 const defaultLlm: Llm = async (messages, tools) => {
+  if (isScripted()) {
+    standIn ??= (await import('./llm-scripted')).scripted();
+    return standIn(messages, tools);
+  }
   if (!process.env.OPENAI_API_KEY || !process.env.LLM_MODEL) {
     throw new Error('No language model is configured. Set OPENAI_API_KEY and LLM_MODEL.');
   }

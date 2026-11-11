@@ -45,6 +45,8 @@ const SLOT: Record<MerchantSlug, 1 | 2 | 3> = { lumen: 1, ironwood: 2, harborlig
 
 export const isFake = () => process.env.PAYPAL_FAKE === '1';
 export const isConfigured = () => isFake() || !!process.env.PAYPAL_1_CLIENT_ID;
+/** Development only: a scripted stand-in replaces the language model. */
+export const isScripted = () => process.env.LLM_SCRIPTED === '1';
 
 const slotSet = (n: number) => !!process.env[`PAYPAL_${n}_CLIENT_ID`] && !!process.env[`PAYPAL_${n}_CLIENT_SECRET`];
 
