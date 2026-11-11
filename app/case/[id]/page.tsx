@@ -109,7 +109,8 @@ export default function CasePage() {
   const decide: Decide = async (item, action, refundCaptureIds) => {
     const problem = await patch({ decisions: [{ itemId: item.id, action, refundCaptureIds }] });
     // The message is shown in its own row, so the item id the server puts in front of it is dropped.
-    setRowErrors((e) => ({ ...e, [item.id]: problem.replace(/^Item \S+: /, '') }));
+    // A change that goes through clears earlier refusals; a refusal stays on its own row.
+    setRowErrors((e) => (problem ? { ...e, [item.id]: problem.replace(/^Item \S+: /, '') } : {}));
   };
 
   if (load === 'loading') {
@@ -137,7 +138,8 @@ export default function CasePage() {
 
   // Once the plan is approved the page shows outcomes, also when a run stopped and has to be carried out again.
   const approved = !!c.approvedAt;
-  const noticeOpen = !approved && (c.status === 'notice' || editing);
+  // While the agent is reading the notice the form steps aside for the activity.
+  const noticeOpen = !approved && c.running === null && (c.status === 'notice' || editing);
   const step = approved ? 2 : noticeOpen ? 0 : 1;
   const locked = sending || c.running !== null;
 

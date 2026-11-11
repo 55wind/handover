@@ -392,8 +392,9 @@ function Statement({ text }: { text: string }) {
 }
 
 export function Done({ c, locked, error, onRetry, onCheck }: { c: Case; locked: boolean; error: string; onRetry: () => void; onCheck: () => void }) {
-  // Approved and back under review means the run stopped with an error before every row had an outcome.
-  const stopped = c.status === 'review';
+  // Approved, back under review and nothing running means the run stopped with an error before every row had an outcome.
+  // While a run is starting the status is still "review" for a moment, which is not a stop.
+  const stopped = c.status === 'review' && !locked;
   const verified = c.items.filter((i) => i.outcome?.verified);
   const count = (a: Action) => verified.filter((i) => i.decided?.action === a).length;
   const refunded = verified.reduce((n, i) => n + (i.decided?.refunds ?? []).reduce((m, r) => m + cents(r.amount), 0), 0);
