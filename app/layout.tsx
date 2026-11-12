@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
-import { Bodoni_Moda, IBM_Plex_Mono, Libre_Franklin } from 'next/font/google';
+import { Fraunces, IBM_Plex_Mono, Libre_Franklin } from 'next/font/google';
 import Link from 'next/link';
 import { SiteNav } from '@/components/SiteNav';
 import { PLATFORM, isFake, isScripted } from '@/lib/shops';
 import './globals.css';
 
-// Bodoni over Franklin is the old print pairing for menus and cards. Plex Mono is kept for codes and PayPal ids alone.
-const display = Bodoni_Moda({ subsets: ['latin', 'latin-ext'], axes: ['opsz'], variable: '--font-bodoni', display: 'swap' });
+// Fraunces over Franklin: a serif with enough weight in its thin strokes to stay readable on a screen and in a recording.
+// Plex Mono is kept for codes and PayPal ids alone.
+const display = Fraunces({ subsets: ['latin', 'latin-ext'], axes: ['opsz'], variable: '--font-serif', display: 'swap' });
 const body = Libre_Franklin({ subsets: ['latin', 'latin-ext'], variable: '--font-franklin', display: 'swap' });
 const mono = IBM_Plex_Mono({ subsets: ['latin'], weight: '400', variable: '--font-plex-mono', display: 'swap' });
 

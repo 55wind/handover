@@ -6,13 +6,13 @@
 /* Hallmark · dismissed 49 · "Open the recipient's page" is the label the brief gives that demo link; the button wraps at phone width */
 /* Hallmark · dismissed 70 · "Confirmed with PayPal" at the counter appears only when the redeem call answers with verified set */
 /* Hallmark · answered F1 · the two straight quotes found in the ledger are a JSX attribute, not prose */
-/* Oat paper, warm near-black ink, one ink-blue signal, Bodoni Moda over Libre Franklin, IBM Plex Mono on codes and PayPal
+/* Oat paper, warm near-black ink, one ink-blue signal, Fraunces over Libre Franklin, IBM Plex Mono on codes and PayPal
  * ids only, square corners, hairlines, no imagery. The accent draws link underlines, the focus ring and selected text, nothing else. */
 
 :root {
   color-scheme: light;
   --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px; --space-4xl: 144px;
-  --text-xs: 0.8125rem; --text-sm: 0.875rem; --text-md: 1rem; --text-body: 1.0625rem; --text-xl: 1.5625rem; --text-2xl: 1.953rem; --text-3xl: 2.441rem;
+  --text-xs: 0.875rem; --text-sm: 0.9375rem; --text-md: 1.0625rem; --text-body: 1.125rem; --text-xl: 1.5625rem; --text-2xl: 1.953rem; --text-3xl: 2.441rem;
   --text-display-s: clamp(2.25rem, 4vw + 0.5rem, 3.75rem); --text-display: clamp(2.5rem, 5vw + 1rem, 5.25rem);
   --text-section: clamp(2rem, 2.5vw + 1rem, 3.5rem); --text-title: clamp(1.25rem, 0.75vw + 0.875rem, 1.625rem); --text-lead: clamp(1.125rem, 0.35vw + 1rem, 1.375rem);
   --text-greeting: clamp(2rem, 3.2vw + 0.5rem, 3.5rem); --text-code: clamp(2.25rem, 11vw, 4.5rem);
@@ -23,14 +23,15 @@
   --z-sticky-nav: 300; --z-toast: 500;
   --control: 2.75rem;
   --color-paper: oklch(96.5% 0.016 82); --color-paper-2: oklch(93.5% 0.02 80); --color-paper-3: oklch(89% 0.024 78);
-  --color-ink: oklch(17% 0.012 60); --color-ink-2: oklch(28% 0.014 60); --color-muted: oklch(49% 0.014 65);
+  --color-ink: oklch(17% 0.012 60); --color-ink-2: oklch(28% 0.014 60); --color-muted: oklch(41% 0.014 65);
   --color-rule: oklch(80% 0.018 75); --color-rule-2: oklch(66% 0.02 72);
   --color-accent: oklch(45% 0.18 262); --color-accent-ink: oklch(97% 0.012 82); --color-focus: oklch(50% 0.18 262);
   --color-guide: oklch(55% 0.16 262 / 0.5);
   --color-error: oklch(47% 0.18 27);
   --color-alarm: oklch(50% 0.21 27); --color-alarm-ink: oklch(98% 0.012 82);
-  /* Bodoni has no Hangul. A myeongjo face, where the reader's machine has one, keeps Korean names in the same voice. */
-  --font-display: var(--font-bodoni), "Noto Serif KR", "Nanum Myeongjo", AppleMyungjo, Batang, ui-serif, Georgia, serif;
+  /* Fraunces has no Hangul. Korean names fall to a clean gothic face, which stays readable at every size. */
+  --font-display: var(--font-serif), Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", ui-serif, Georgia, serif;
+  --weight-display: 560;
   --font-body: var(--font-franklin), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
   --tracking-display: -0.02em;
@@ -48,11 +49,11 @@ main { flex: 1; }
 :focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 a { color: inherit; text-decoration-line: underline; text-decoration-thickness: 1px; text-decoration-color: var(--color-accent); text-underline-offset: 0.18em; }
 a:hover { text-decoration-thickness: 2px; }
-h1, h2, h3 { margin: 0; font-family: var(--font-display); font-weight: 400; font-synthesis: none; letter-spacing: var(--tracking-display); line-height: 1.02; overflow-wrap: break-word; min-width: 0; text-wrap: balance; }
+h1, h2, h3 { margin: 0; font-family: var(--font-display); font-weight: var(--weight-display); font-synthesis: none; letter-spacing: var(--tracking-display); line-height: 1.02; overflow-wrap: break-word; min-width: 0; text-wrap: balance; }
 h1 { max-width: 20ch; font-size: var(--text-display); }
 h2 { max-width: 30ch; font-size: var(--text-section); }
 h3 { max-width: 40ch; font-size: var(--text-title); line-height: 1.15; }
-/* Hangul, and Latin with marks above and below, need more room between lines than Bodoni's own capitals do. */
+/* Hangul, and Latin with marks above and below, need more room between lines than the display face's own capitals do. */
 :is(h1, h2, h3):lang(ko) { line-height: 1.25; letter-spacing: 0; word-break: keep-all; }
 p, ul, ol, dl, dd, figure, blockquote { margin: 0; }
 p { text-wrap: pretty; }
@@ -77,7 +78,7 @@ th { text-align: left; font-weight: 500; }
 .skip:focus-visible { top: var(--space-md); }
 .site-head { border-bottom: 1px solid var(--color-guide); }
 .site-head > .container { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 var(--space-lg); min-height: var(--space-2xl); }
-.wordmark { display: inline-flex; align-items: center; min-height: var(--control); font-family: var(--font-display); font-size: var(--text-xl); letter-spacing: var(--tracking-display); line-height: 1; text-decoration: none; white-space: nowrap; }
+.wordmark { display: inline-flex; align-items: center; min-height: var(--control); font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-xl); letter-spacing: var(--tracking-display); line-height: 1; text-decoration: none; white-space: nowrap; }
 .site-nav { display: flex; gap: var(--space-lg); font-size: var(--text-sm); }
 .site-nav a { display: inline-flex; align-items: center; min-height: var(--control); white-space: nowrap; }
 .site-nav a[aria-current="page"] { text-decoration-thickness: 2px; }
@@ -124,7 +125,7 @@ textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
 .greetings li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: var(--space-2xs) var(--space-md); padding-block: var(--space-sm); border-top: 1px solid var(--color-rule); }
 .greetings li:first-child { border-top-color: var(--color-ink); }
 .greetings li:last-child { border-bottom: 1px solid var(--color-rule); }
-.greetings__say { font-family: var(--font-display); font-size: var(--text-greeting); font-variation-settings: "opsz" 96; letter-spacing: var(--tracking-display); line-height: 1.12; overflow-wrap: break-word; min-width: 0; }
+.greetings__say { font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-greeting); font-variation-settings: "opsz" 96; letter-spacing: var(--tracking-display); line-height: 1.12; overflow-wrap: break-word; min-width: 0; }
 .greetings__say:lang(ko) { letter-spacing: 0; }
 .greetings li > .small { text-align: right; }
 
@@ -134,7 +135,7 @@ textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
 
 .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap-columns); counter-reset: step; }
 .steps li { counter-increment: step; display: grid; gap: var(--space-sm); align-content: start; padding-top: var(--space-md); border-top: 1px solid var(--color-ink); }
-.steps li::before { content: counter(step); font-family: var(--font-display); font-size: var(--text-display-s); font-variation-settings: "opsz" 24; line-height: 1; }
+.steps li::before { content: counter(step); font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-display-s); font-variation-settings: "opsz" 24; line-height: 1; }
 .steps p { color: var(--color-ink-2); }
 
 /* The one table under the double rule: what a gift card does, beside what happens here. */
@@ -152,7 +153,7 @@ textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
 .shops > li:first-child { padding-top: 0; border-top: 0; }
 .shops > li:last-child { padding-bottom: 0; }
 .shops__name { display: grid; gap: var(--space-2xs); align-content: start; }
-.shops__local { font-family: var(--font-display); font-size: var(--text-title); letter-spacing: var(--tracking-display); line-height: 1.2; }
+.shops__local { font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-title); letter-spacing: var(--tracking-display); line-height: 1.2; }
 .shops__local:lang(ko) { letter-spacing: 0; }
 
 /* A menu: the dish as the shop writes it, the shop's price, and what that is in dollars. */
@@ -216,22 +217,22 @@ textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
 .proposal { display: grid; gap: var(--space-lg); align-content: start; padding-top: var(--space-lg); border-top: 3px double var(--color-rule-2); }
 .proposal > * { min-width: 0; }
 .dish { display: grid; gap: var(--space-2xs); }
-.dish__local { font-family: var(--font-display); font-size: var(--text-3xl); letter-spacing: var(--tracking-display); line-height: 1.12; overflow-wrap: break-word; }
+.dish__local { font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-3xl); letter-spacing: var(--tracking-display); line-height: 1.12; overflow-wrap: break-word; }
 .dish__local:lang(ko) { letter-spacing: 0; line-height: 1.25; }
 .dish__name { font-size: var(--text-lead); line-height: 1.4; }
 /* The card: the one object on these pages with a full border. Inside it, the words as the recipient will read them. */
 .card { display: grid; gap: var(--space-md); padding: var(--space-lg); border: 1px solid var(--color-ink); }
-.card blockquote { font-family: var(--font-display); font-size: var(--text-xl); line-height: 1.35; overflow-wrap: anywhere; white-space: pre-line; }
+.card blockquote { font-family: var(--font-display); font-weight: 500; font-size: var(--text-xl); line-height: 1.35; overflow-wrap: anywhere; white-space: pre-line; }
 .card blockquote:lang(ko) { line-height: 1.5; word-break: keep-all; }
 .card figcaption { display: grid; gap: var(--space-3xs); padding-top: var(--space-sm); border-top: 1px solid var(--color-rule); }
 .card--letter { gap: var(--space-lg); padding: var(--space-xl); }
 .card--letter blockquote { font-size: var(--text-2xl); }
-.card--letter figcaption { justify-items: end; font-family: var(--font-display); font-size: var(--text-xl); line-height: 1.2; }
+.card--letter figcaption { justify-items: end; font-family: var(--font-display); font-weight: 500; font-size: var(--text-xl); line-height: 1.2; }
 .card-says { display: block; }
 .sum > div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--space-lg); padding-block: var(--space-2xs); }
 .sum > div:last-child { margin-top: var(--space-xs); padding-top: var(--space-sm); border-top: 1px solid var(--color-rule-2); }
 .sum > div:last-child dt { font-weight: 500; }
-/* Amounts are figures to read at a glance, so they are set in the body face with lining numerals, not in Bodoni. */
+/* Amounts are figures to read at a glance, so they are set in the body face with lining numerals, not in the display face. */
 .sum > div:last-child dd { font-size: var(--text-2xl); font-weight: 500; line-height: 1.1; }
 @media (min-width: 60.0625rem) {
   .send--two { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); column-gap: var(--space-2xl); align-items: start; }
@@ -268,7 +269,7 @@ textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
 
 .statement { display: grid; gap: var(--space-lg); max-width: var(--measure); padding: var(--space-xl); border: 1px solid var(--color-rule-2); }
 .statement__mark { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2xs) var(--space-md); padding-bottom: var(--space-md); border-bottom: 3px double var(--color-rule-2); }
-.statement__mark b { font-family: var(--font-display); font-size: var(--text-xl); font-weight: 400; letter-spacing: var(--tracking-display); line-height: 1; }
+.statement__mark b { font-family: var(--font-display); font-size: var(--text-xl); font-weight: var(--weight-display); letter-spacing: var(--tracking-display); line-height: 1; }
 .statement__total { font-size: var(--text-3xl); font-weight: 500; line-height: 1.1; }
 
 .refs { display: grid; gap: var(--space-3xs); font-size: var(--text-sm); }
