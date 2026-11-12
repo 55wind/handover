@@ -37,7 +37,7 @@ It runs on the PayPal sandbox, with 11 fictional shops in five cities.
 
 - One Next.js app (React, TypeScript) on the PayPal sandbox.
 - PayPal: Orders v2 with intent `AUTHORIZE`, authorize, a final capture of part of the authorisation, void, and Payouts. Every read of an order goes through the PayPal Agent Toolkit's `get_order`. The other calls are plain REST.
-- Three agents (errand, host, till) share one tool loop against an OpenAI-compatible chat completions endpoint with tool calling. TODO: name the model.
+- Three agents (errand, host, till) share one tool loop. The model is Claude Haiku 5.5 through the Claude API (Anthropic's SDK); an OpenAI-compatible endpoint works too.
 - The rules are pure functions in `lib/rules.ts`. Each tool call of an agent passes through them before PayPal is called.
 - An MCP endpoint with three tools, and AG Grid for the ledger.
 - Menu prices are in the shop's own currency. The dollar price comes from a fixed exchange-rate table dated 2026-11-12, because PayPal does not support every local currency.
@@ -55,7 +55,7 @@ It runs on the PayPal sandbox, with 11 fictional shops in five cities.
 - One whole treat on the real PayPal sandbox (2026-11-12, with the scripted stand-in as the model): $14.00 was held after a sandbox buyer approved; the recipient changed abalone porridge to vegetable porridge; at the counter $6.74 was captured, the authorisation closed and the other $7.26 was released; a payout of $6.74 to the shop account was accepted.
 - A model cannot serve a treat by saying so. In the end-to-end check, a till model that pays the shop first, never takes the payment and then reports "served" serves nothing, and no shop is paid.
 - A capture whose answer is lost is still found, because code reads PayPal back after every settlement, and the shop is paid once.
-- TODO after a run with a real language model: one sentence on what it chose and wrote.
+- With the real model on the real sandbox: the errand agent chose abalone porridge for a mother with a cold and wrote the card in Korean, the host agent changed it to vegetable porridge when she said she cannot eat seafood, and the till agent took $6.74 of the $14.00 held and paid the shop. An 18-check eval passes, at about $0.001 of model cost per treat.
 
 ### What we learned
 
@@ -74,11 +74,11 @@ It runs on the PayPal sandbox, with 11 fictional shops in five cities.
 
 ## Built with
 
-PayPal Orders API, PayPal Payments API, PayPal Payouts API, PayPal Agent Toolkit, PayPal sandbox, Model Context Protocol, Next.js, React, TypeScript, Node.js, AG Grid, OpenAI-compatible LLM API (TODO: model name), Render (TODO: confirm after deployment), Claude Code
+PayPal Orders API, PayPal Payments API, PayPal Payouts API, PayPal Agent Toolkit, PayPal sandbox, Model Context Protocol, Next.js, React, TypeScript, Node.js, AG Grid, Claude API (Claude Haiku 5.5), Anthropic TypeScript SDK, Render (TODO: confirm after deployment), Claude Code
 
 ## AI tools used and how
 
-- TODO model name, through an OpenAI-compatible chat completions endpoint with tool calling. It runs three agents. The errand agent turns the sender's sentence into a dish at a shop near the recipient and writes the card in two languages. The host agent talks to the recipient in their language and can change the dish, note a visit, pass on a thank-you or take a no. The till agent reads the PayPal order, takes the price, pays the shop and writes one sentence each for the shop and the sender. All three act only through tools, and code applies the rules behind each tool.
+- Claude Haiku 5.5 (`claude-haiku-5-5`) through the Claude API, with tool calling, prompt caching and low thinking effort. It runs three agents. The errand agent turns the sender's sentence into a dish at a shop near the recipient and writes the card in two languages. The host agent talks to the recipient in their language and can change the dish, note a visit, pass on a thank-you or take a no. The till agent reads the PayPal order, takes the price, pays the shop and writes one sentence each for the shop and the sender. All three act only through tools, and code applies the rules behind each tool.
 - Claude Code (Anthropic): wrote the code, the tests and the documents under the owner's direction.
 - A scripted stand-in for the model exists for development and tests. It is not an AI tool and does not run on the hosted demo.
 - TODO if used: any tool used for the video, such as text-to-speech for the voiceover.

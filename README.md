@@ -180,7 +180,7 @@ Three agents run on one tool loop (`lib/agent.ts`). The loop does not care which
 
 `LLM_MODEL` chooses another model. No image input is needed.
 
-**TODO**: say which model the hosted demo runs on, with the result of `npm run eval` for it. No run with a real model has been made yet.
+The demo runs on **Claude Haiku 5.5** (`claude-haiku-5-5`) through the Claude API. On 2026-11-12 `npm run eval` passed 18 of 18 checks with it, twice in a row, and measured about $0.001 of model cost per treat (43 model calls for the whole run, $0.0134).
 
 **Keeping it cheap without losing accuracy.** Every amount and every yes-or-no about money is decided in code, so the model only has to look things up, choose a dish and write a few sentences. That is why the defaults are the cheapest current models ($0.10 per million input tokens and $0.50 per million output tokens on both providers' price pages on 2026-11-12). Three more measures: when the sender names exactly one city, code hands the agent that city's shops with the conversation, which saves a model call per treat; on the Claude API the instructions and tool list are cached and thinking runs at low effort (`LLM_EFFORT`); and daily caps bound what a public demo can spend. `npm run eval` runs 18 checks of the three agents against the configured model (a warm dish for a cold, no seafood, a budget, the card's language, no amount ever said to the recipient, the counter) and prints the tokens used and the cost per treat, so a dearer model is chosen only if the cheap one fails a check.
 
@@ -264,7 +264,7 @@ With the scripted stand-in the exact dishes and amounts are asserted. With a rea
 
 **Not yet verified.**
 
-- **TODO**: a run with a real language model, on the stand-in (`npm run e2e` with a model key) and on the real sandbox (`npx tsx scripts/sandbox-run.ts`). Every run so far used the scripted stand-in.
+- **With the real model** (`claude-haiku-5-5`, 2026-11-12): `npm run eval` passes 18 of 18, and `npx tsx scripts/sandbox-run.ts` ran a whole treat on the real PayPal sandbox. The errand agent chose abalone porridge at Haeundae Jukjip for a mother with a cold and wrote the card in Korean; PayPal held $14.00; the host agent greeted her in Korean and changed the dish to vegetable porridge when she said she cannot eat seafood; at the counter the till agent took $6.74 (capture COMPLETED, the other $7.26 released), paid the shop (payout accepted, then PROCESSING) and wrote to the shopkeeper in Korean and to the sender in English.
 - **TODO**: a run through the hosted pages on Render.
 - The runs above ended with the payout at `PENDING` and `PROCESSING`. A payout that PayPal reports as `SUCCESS` is not among the results recorded here.
 
