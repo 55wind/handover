@@ -40,10 +40,12 @@ export function scripted(): Llm {
       const all = (ctx.conversation as { from: string; text: string }[]).filter((m) => m.from === 'person').map((m) => m.text).join(' ');
       const place = all.match(PLACE)?.[0];
       if (!place) return { content: 'Where are they? Tell me the city or the neighbourhood, and what is going on.' };
-      if (turn === 0) return { content: null, tool_calls: [call('find_shops', { place })] };
-      const found = results[0]?.data;
+      // When the shops came with the conversation, no lookup is needed, as with the real model.
+      const given = ctx.shops_near_recipient as Result['data'] | undefined;
+      if (!given && turn === 0) return { content: null, tool_calls: [call('find_shops', { place })] };
+      const found = given ?? results[0]?.data;
       if (!found?.city) return { content: `No shop takes part there yet. Shops take part in ${(found?.cities_taking_part ?? []).join(', ')}.` };
-      if (turn === 1) {
+      if (turn === (given ? 0 : 1)) {
         const want = /cold|sick|flu|unwell|ill\b|fever|아프|감기/i.test(all)
           ? ['warm', 'light']
           : /birthday|celebrat|anniversar|생일/i.test(all)

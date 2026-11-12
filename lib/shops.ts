@@ -248,6 +248,12 @@ export function cityOf(place: string): string | undefined {
   return CITIES.find((city) => PLACES[city].some((word) => p.includes(word)));
 }
 
+/** Every city with shops that a text mentions. */
+export function citiesIn(text: string): string[] {
+  const t = text.toLowerCase();
+  return CITIES.filter((city) => PLACES[city].some((word) => t.includes(word)));
+}
+
 /** Shops in the city the place points at, those in a neighbourhood the place names first. */
 export function shopsNear(place: string): Shop[] {
   const city = cityOf(place);

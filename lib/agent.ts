@@ -1,4 +1,7 @@
 // The model client and the tool loop shared by the three agents (errand, host, till).
+// Two providers: the Claude API through Anthropic's SDK (ANTHROPIC_API_KEY), or any OpenAI-compatible chat
+// completions endpoint (OPENAI_API_KEY). The agents do not know which one answers.
+import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { isScripted } from './shops';
 import { store } from './store';
@@ -18,6 +21,8 @@ export interface LlmCall {
 export interface LlmReply {
   content: string | null;
   tool_calls?: LlmCall[];
+  /** The provider's own form of this turn (thinking blocks included), sent back unchanged on the next request. */
+  raw?: unknown;
 }
 export type LlmMessage =
   | { role: 'system'; content: string }
@@ -26,6 +31,58 @@ export type LlmMessage =
   | { role: 'tool'; tool_call_id: string; content: string };
 export type Llm = (messages: LlmMessage[], tools: LlmTool[]) => Promise<LlmReply>;
 
+/** Tokens used since this process started, for working out what a treat costs to run. */
+export const usage = { calls: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+
+let claude: Anthropic | undefined;
+/** The cheapest current Claude model. The agents only look things up, choose and write; every amount is decided in code. */
+const CLAUDE_MODEL = 'claude-haiku-5-5';
+
+const claudeLlm: Llm = async (messages, tools) => {
+  claude ??= new Anthropic({ timeout: 60_000, maxRetries: 1 }); // reads ANTHROPIC_API_KEY
+  const [first, ...rest] = messages;
+  const turns: Anthropic.MessageParam[] = [];
+  for (const m of first.role === 'system' ? rest : messages) {
+    if (m.role === 'user') turns.push({ role: 'user', content: m.content });
+    else if (m.role === 'assistant') {
+      // The turn goes back exactly as the model produced it: its thinking blocks are only valid unchanged.
+      const blocks = (m.raw as Anthropic.ContentBlockParam[] | undefined) ?? [
+        ...(m.content ? [{ type: 'text' as const, text: m.content }] : []),
+        ...(m.tool_calls ?? []).map((c) => ({ type: 'tool_use' as const, id: c.id, name: c.function.name, input: JSON.parse(c.function.arguments || '{}') })),
+      ];
+      turns.push({ role: 'assistant', content: blocks });
+    } else if (m.role === 'tool') {
+      // Every result of one turn goes back in a single user message.
+      const result: Anthropic.ToolResultBlockParam = { type: 'tool_result', tool_use_id: m.tool_call_id, content: m.content };
+      const last = turns.at(-1);
+      if (last?.role === 'user' && Array.isArray(last.content) && last.content.every((b) => b.type === 'tool_result')) last.content.push(result);
+      else turns.push({ role: 'user', content: [result] });
+    }
+  }
+  const res = await claude.messages.create({
+    model: process.env.LLM_MODEL || CLAUDE_MODEL,
+    max_tokens: 16000,
+    // The instructions and tool list are the same on every call, so they are cached and re-read at a tenth of the price.
+    ...(first.role === 'system' ? { system: [{ type: 'text' as const, text: first.content, cache_control: { type: 'ephemeral' as const } }] } : {}),
+    // In a tool loop each call repeats everything before it: cache that too.
+    ...(tools.length ? { cache_control: { type: 'ephemeral' as const } } : {}),
+    thinking: { type: 'adaptive' },
+    // Short lookups and short replies: low effort keeps thinking, and its cost, small.
+    output_config: { effort: (process.env.LLM_EFFORT as 'low' | 'medium' | 'high' | undefined) || 'low' },
+    ...(tools.length ? { tools: tools.map((t) => ({ name: t.function.name, description: t.function.description, input_schema: t.function.parameters as Anthropic.Tool.InputSchema })) } : {}),
+    messages: turns,
+  });
+  usage.calls++;
+  usage.input += res.usage.input_tokens;
+  usage.output += res.usage.output_tokens;
+  usage.cacheRead += res.usage.cache_read_input_tokens ?? 0;
+  usage.cacheWrite += res.usage.cache_creation_input_tokens ?? 0;
+  if (res.stop_reason === 'refusal') throw new Error('The model declined this request.');
+  const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n').trim();
+  const calls = res.content.flatMap((b) => (b.type === 'tool_use' ? [{ id: b.id, type: 'function' as const, function: { name: b.name, arguments: JSON.stringify(b.input ?? {}) } }] : []));
+  return { content: text || null, ...(calls.length ? { tool_calls: calls } : {}), raw: res.content };
+};
+
 let client: OpenAI | undefined;
 let standIn: Llm | undefined;
 export const defaultLlm: Llm = async (messages, tools) => {
@@ -33,16 +90,21 @@ export const defaultLlm: Llm = async (messages, tools) => {
     standIn ??= (await import('./llm-scripted')).scripted();
     return standIn(messages, tools);
   }
+  if (process.env.ANTHROPIC_API_KEY) return claudeLlm(messages, tools);
   if (!process.env.OPENAI_API_KEY || !process.env.LLM_MODEL) {
-    throw new Error('No language model is configured. Set OPENAI_API_KEY and LLM_MODEL.');
+    throw new Error('No language model is configured. Set ANTHROPIC_API_KEY, or OPENAI_API_KEY and LLM_MODEL.');
   }
   // A stalled model call must not leave a payment hanging: one minute, one retry.
   client ??= new OpenAI({ baseURL: process.env.OPENAI_BASE_URL || undefined, timeout: 60_000, maxRetries: 1 });
   const res = await client.chat.completions.create({
     model: process.env.LLM_MODEL,
-    messages: messages as never,
+    messages: messages.map((m) => (m.role === 'assistant' ? { role: m.role, content: m.content, ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}) } : m)) as never,
     ...(tools.length ? { tools } : {}),
   });
+  usage.calls++;
+  usage.input += res.usage?.prompt_tokens ?? 0;
+  usage.output += res.usage?.completion_tokens ?? 0;
+  usage.cacheRead += res.usage?.prompt_tokens_details?.cached_tokens ?? 0;
   const m = res.choices[0].message;
   return { content: m.content, tool_calls: m.tool_calls as LlmCall[] | undefined };
 };
@@ -87,7 +149,7 @@ export async function loop(o: {
     const calls = reply.tool_calls ?? [];
     const said = reply.content?.trim() ?? '';
     // A reply with neither text nor tool calls is not sent back: providers reject an empty assistant message.
-    if (calls.length || said) messages.push({ role: 'assistant', content: reply.content, ...(calls.length ? { tool_calls: calls } : {}) });
+    if (calls.length || said) messages.push({ role: 'assistant', content: reply.content, ...(calls.length ? { tool_calls: calls } : {}), ...(reply.raw ? { raw: reply.raw } : {}) });
     if (said) {
       last = said;
       if (o.narrate) store.emit(t.id, { actor: o.actor, type: 'note', summary: said });

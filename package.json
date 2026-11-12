@@ -9,9 +9,11 @@
     "start": "next start",
     "test": "tsx --test \"lib/**/*.test.ts\"",
     "probe": "tsx scripts/probe.ts",
-    "e2e": "tsx scripts/e2e.ts"
+    "e2e": "tsx scripts/e2e.ts",
+    "eval": "tsx scripts/eval.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.8.0",
     "@paypal/agent-toolkit": "^1.11.0",
     "ag-grid-community": "^36.3.0",
     "ag-grid-react": "^36.3.0",
