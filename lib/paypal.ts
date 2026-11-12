@@ -44,7 +44,7 @@ function plain(id: string): string {
   return id;
 }
 
-/** The parts of PayPal's order that the pricing rules read. An order that is only approved has no `payments` yet. */
+/** The parts of PayPal's order that the rules read. An order that is only approved has no `payments` yet. */
 function view(o: Json): OrderView {
   const unit = o.purchase_units?.[0];
   const authorization = unit?.payments?.authorizations?.[0];
@@ -210,13 +210,13 @@ function realBackend(clientId: string, clientSecret: string): Backend {
   };
 }
 
-const g = globalThis as { __fairHourPaypal?: Backend };
+const g = globalThis as { __haveYouEatenPaypal?: Backend };
 
-/** The fake when PAYPAL_FAKE=1, otherwise the real sandbox backend for the seller's app. */
+/** The fake when PAYPAL_FAKE=1, otherwise the real sandbox backend for the platform's app. */
 export function backend(): Backend {
   if (isFake()) return fakeBackend;
   const { PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET } = process.env;
   if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET)
     throw new Error('PayPal is not configured: set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET (or PAYPAL_FAKE=1 in development).');
-  return (g.__fairHourPaypal ??= realBackend(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET));
+  return (g.__haveYouEatenPaypal ??= realBackend(PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET));
 }

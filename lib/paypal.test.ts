@@ -13,7 +13,7 @@ before(async () => {
 
 const RETURN = 'https://shop.example/api/treats/p1/return';
 const CANCEL = 'https://shop.example/purchase/p1?cancelled=1';
-const create = (returnUrl = RETURN) => pp.createOrder({ amount: '7.25', description: 'Hand lettering basics', reference: 'p1', returnUrl, cancelUrl: CANCEL });
+const create = (returnUrl = RETURN) => pp.createOrder({ amount: '7.25', description: 'Vegetable porridge at Haeundae Jukjip', reference: 'p1', returnUrl, cancelUrl: CANCEL });
 /** An order approved by the wallet registered in this country. */
 async function approved(country = 'CA') {
   const { orderId } = await create();

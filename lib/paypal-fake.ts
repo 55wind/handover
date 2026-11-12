@@ -22,8 +22,8 @@ interface State {
 }
 
 // On globalThis so orders survive Next.js hot reloads.
-const g = globalThis as { __fairHourFake?: State };
-const s: State = (g.__fairHourFake ??= { orders: new Map(), fail: new Map(), lose: new Map() });
+const g = globalThis as { __haveYouEatenFake?: State };
+const s: State = (g.__haveYouEatenFake ??= { orders: new Map(), fail: new Map(), lose: new Map() });
 s.lose ??= new Map(); // state kept from before a hot reload may lack it
 
 const rid = () => Array.from(randomBytes(17), (b) => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('');

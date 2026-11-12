@@ -72,10 +72,13 @@ API (JSON; errors are `{ error: string }` with a 4xx status):
 
 Types are in `lib/types.ts`.
 
-## 5. Not yet verified (no credentials at design time)
+## 5. Verified on the real sandbox (2026-11-12)
 
-- Capturing part of an authorization and seeing the rest released, on the real sandbox.
-- Payouts from the platform's sandbox account to a shop's sandbox account.
+- `scripts/probe.ts`: a $5.00 order with intent AUTHORIZE was approved by a sandbox buyer, the hold was placed, $2.10 was captured with `final_capture: true`, the authorization then showed as CAPTURED (the other $2.90 released), and a $2.10 payout to a second sandbox account was accepted.
+- `scripts/sandbox-run.ts` and the pages: a whole treat. $14.00 held, the recipient changed the dish, $6.74 captured, $7.26 released, payout accepted. Through the pages: $5.00 held, $3.34 captured, $1.66 released.
+- Not yet run with a real language model; the runs above used the scripted stand-in for the model and real PayPal.
+
+Details the code adds to this design: a treat that ran out is released the next time anyone looks at it (there is no timer); the return address redirects at once and places the hold in the background; a dish above $40.00 is refused; daily caps on model runs and orders; 30 messages per conversation; eight wrong codes a minute per shop; a shop's money is recorded as owed when a payout fails; the payout's status is asked again later.
 
 ## 6. Needed from the owner
 
