@@ -5,7 +5,7 @@
 An entry for the PayPal AI Hackathon 2026. It runs on the PayPal sandbox only: no real money moves. The shops, the shopkeepers and the people are fictional.
 
 - Repository: https://github.com/55wind/have-you-eaten
-- Live demo: **TODO** (Render address, added after deployment)
+- Live demo: https://have-you-eaten.onrender.com (Render's free plan: after 15 minutes without a visitor the first page can take about a minute to wake up, and the ledger starts empty again)
 - Video: **TODO** (YouTube address, added after recording)
 
 ## Why
@@ -118,7 +118,7 @@ The host agent is never given a price, so it cannot reveal one.
 
 ## Try it
 
-**TODO** before submitting: put the hosted address here and check the button labels below against the deployed build.
+The hosted demo is at https://have-you-eaten.onrender.com.
 
 You play three roles. The pages include boxes labelled "Demo helpers" that open the other roles' pages in a new tab. In real use the recipient and the shopkeeper are other people on their own phones.
 
@@ -265,7 +265,7 @@ With the scripted stand-in the exact dishes and amounts are asserted. With a rea
 **Not yet verified.**
 
 - **With the real model** (`claude-haiku-5-5`, 2026-11-12): `npm run eval` passes 18 of 18, and `npx tsx scripts/sandbox-run.ts` ran a whole treat on the real PayPal sandbox. The errand agent chose abalone porridge at Haeundae Jukjip for a mother with a cold and wrote the card in Korean; PayPal held $14.00; the host agent greeted her in Korean and changed the dish to vegetable porridge when she said she cannot eat seafood; at the counter the till agent took $6.74 (capture COMPLETED, the other $7.26 released), paid the shop (payout accepted, then PROCESSING) and wrote to the shopkeeper in Korean and to the sender in English.
-- **TODO**: a run through the hosted pages on Render.
+- **On the hosted demo** (https://have-you-eaten.onrender.com, 2026-11-12): one treat from start to finish. A slice of cheesecake in Kraków for a father's birthday: the sandbox buyer approved at PayPal and was sent back to the hosted page, $5.00 was held, the host agent greeted him in Polish and passed his thank-you on in English, the counter took $3.79 (confirmed with PayPal, the other $1.21 released) and the payout to the shop was accepted.
 - The runs above ended with the payout at `PENDING` and `PROCESSING`. A payout that PayPal reports as `SUCCESS` is not among the results recorded here.
 
 ## For AI assistants (MCP)
@@ -281,10 +281,10 @@ An assistant cannot hold or take money. Its user approves the hold at PayPal, an
 With Claude Code, for example:
 
 ```
-claude mcp add --transport http have-you-eaten https://TODO-host/api/mcp
+claude mcp add --transport http have-you-eaten https://have-you-eaten.onrender.com/api/mcp
 ```
 
-**TODO**: replace `TODO-host` with the hosted address. Then ask it to send something warm to someone in Kraków.
+Then ask it to send something warm to someone in Kraków.
 
 ## Run it locally
 

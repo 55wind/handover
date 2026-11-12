@@ -74,7 +74,7 @@ It runs on the PayPal sandbox, with 11 fictional shops in five cities.
 
 ## Built with
 
-PayPal Orders API, PayPal Payments API, PayPal Payouts API, PayPal Agent Toolkit, PayPal sandbox, Model Context Protocol, Next.js, React, TypeScript, Node.js, AG Grid, Claude API (Claude Haiku 5.5), Anthropic TypeScript SDK, Render (TODO: confirm after deployment), Claude Code
+PayPal Orders API, PayPal Payments API, PayPal Payouts API, PayPal Agent Toolkit, PayPal sandbox, Model Context Protocol, Next.js, React, TypeScript, Node.js, AG Grid, Claude API (Claude Haiku 5.5), Anthropic TypeScript SDK, Render, Claude Code
 
 ## AI tools used and how
 
@@ -94,12 +94,12 @@ PayPal Orders API, PayPal Payments API, PayPal Payouts API, PayPal Agent Toolkit
 ## Links
 
 - Repository: https://github.com/55wind/have-you-eaten
-- Live demo: TODO
+- Live demo: https://have-you-eaten.onrender.com
 - Video: TODO
 
 ## Testing instructions for judges
 
-TODO before submitting: check these steps and button labels against the deployed build, and replace TODO-host.
+The demo runs on Render's free plan: if nobody has visited for 15 minutes, the first page can take about a minute to wake up.
 
 No login is needed for the app itself. To approve the hold at PayPal, use this sandbox buyer. It is a PayPal sandbox test account and holds no real money.
 
@@ -108,7 +108,7 @@ No login is needed for the app itself. To approve the hold at PayPal, use this s
 
 As the sender:
 
-1. Open https://TODO-host/send. Type your name if you want the card signed with it.
+1. Open https://have-you-eaten.onrender.com/send. Type your name if you want the card signed with it.
 2. Write one sentence, for example "My mom in Busan has a cold. Get her something warm tonight.", or press one of the examples. Press "Send to the agent".
 3. The agent answers with the dish, the shop, the card in both languages, the price and what PayPal will hold. To change anything, tell the agent.
 4. Press "Hold $… with PayPal", log in with the sandbox buyer and approve.
@@ -123,12 +123,12 @@ As the shopkeeper:
 
 8. Press "Play the shopkeeper" on the treat's page, or "At the counter" on the recipient's page. The shop's page opens with the code filled in.
 9. Press "Serve this treat". This can take up to 20 seconds. The page says "Served", "PayPal paid $…" and "Confirmed with PayPal".
-10. Go back to the sender's page: it shows what was charged and what was released. Open https://TODO-host/ledger for every treat with PayPal's order, hold, capture and payout ids.
+10. Go back to the sender's page: it shows what was charged and what was released. Open https://have-you-eaten.onrender.com/ledger for every treat with PayPal's order, hold, capture and payout ids.
 
 Other things to try:
 
 11. Nothing taken. Send a second treat, open the recipient's page and say you cannot make it, or press "Cancel and release the hold" on the sender's page. The hold is voided and the sender's page says "Nothing was taken".
 12. The wrong shop and the second use. Enter a code at another shop's counter (the landing page links to every counter): it is refused. Enter a code that was already served: it is refused.
-13. As an AI assistant: `claude mcp add --transport http have-you-eaten https://TODO-host/api/mcp`, then ask it to send something warm to someone in Kraków. It returns a PayPal link to approve with the sandbox buyer.
+13. As an AI assistant: `claude mcp add --transport http have-you-eaten https://have-you-eaten.onrender.com/api/mcp`, then ask it to send something warm to someone in Kraków. It returns a PayPal link to approve with the sandbox buyer.
 
 Notes. Treats are kept in memory: if the server has restarted, an old link no longer opens and a new treat has to be sent. A treat can be used for three days. A single treat holds at most $40.00. The demo allows 300 errand runs, 300 host runs and 300 PayPal orders a day; at the counter 200 settlements a day use the model, and after that the rules in code settle. Everything runs on the PayPal sandbox, and the shops and people are fictional.
