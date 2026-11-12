@@ -1,23 +1,21 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { MERCHANTS } from '@/lib/merchants';
-import type { Event, MerchantSlug, Phase } from '@/lib/types';
-import { clock, withIds, withoutMerchant } from './ui';
+import type { Event } from '@/lib/types';
+import { clock } from './format';
+import { withIds } from './ui';
 
-const RUNNING: Record<Phase, string> = {
-  intake: 'Reading the document.',
-  plan: 'Asking each merchant what was running, and drafting a plan.',
-  pause: 'Pausing every active subscription.',
-  resume: 'Resuming what was paused.',
-  execute: 'Carrying out the approved plan.',
+const ACTOR: Record<Event['actor'], string> = {
+  clerk: 'Clerk',
+  agent: 'Agent',
+  desk: 'Seller’s desk',
+  rules: 'Rules',
+  buyer: 'Buyer',
+  system: 'System',
 };
 
-const ACTORS = { agent: 'Agent', guard: 'Guard', family: 'Family', system: 'System' };
-const actor = (a: Event['actor']) =>
-  a in ACTORS ? ACTORS[a as keyof typeof ACTORS] : `${MERCHANTS[a.slice(5) as MerchantSlug]?.name ?? a.slice(5)} desk`;
-
-export function Activity({ events, running }: { events: Event[]; running: Phase | null }) {
+/** The purchase's log as it is written. `working` says what is going on right now, or is empty when nothing is. */
+export function Activity({ events, working }: { events: Event[]; working: string }) {
   const log = useRef<HTMLOListElement>(null);
 
   // Keeps the newest line in view while a run is writing, and when its last lines land just after it ends.
@@ -28,16 +26,14 @@ export function Activity({ events, running }: { events: Event[]; running: Phase 
   return (
     <section className="stack--tight no-print" aria-labelledby="activity-h">
       <h2 id="activity-h">Activity</h2>
-      <p role="status">{running && RUNNING[running]}</p>
-      {running && <div className="progress" />}
+      <p role="status">{working}</p>
+      {working && <div className="progress" />}
       <ol className="log" ref={log} tabIndex={0} aria-label="Activity log">
         {events.map((e, i) => (
-          <li key={i} className={e.type === 'denied' || e.type === 'error' ? 'is-blocked' : undefined}>
+          <li key={i} className={e.type === 'refused' || e.type === 'error' ? 'is-blocked' : undefined}>
             <time dateTime={e.ts}>{clock(e.ts)}</time>
-            <span className="log__actor">{actor(e.actor)}</span>
-            <span className="log__text">
-              {withIds(e.actor.startsWith('desk:') ? withoutMerchant(e.summary) : e.summary)}
-            </span>
+            <span className="log__actor">{ACTOR[e.actor] ?? e.actor}</span>
+            <span className="log__text">{withIds(e.summary)}</span>
           </li>
         ))}
       </ol>

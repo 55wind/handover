@@ -26,11 +26,11 @@ export const gridTheme = themeQuartz.withParams({
 });
 
 /**
- * Shared grid behaviour. The cells hold real controls (a select, checkboxes, copy buttons), so the grid's own
+ * Shared grid behaviour. The cells hold real controls (copy buttons, the refund button), so the grid's own
  * focus handling is switched off and Tab walks those controls in reading order: no cell or header focus,
  * tabIndex -1 takes the grid's tab guards out of the order (they would otherwise jump over the rows, and with
  * header focus on, Tab cycles the headers and never leaves), and every key pressed inside a cell is left to the
- * browser, so arrow keys change a select instead of being swallowed. Rows keep the order the server gives.
+ * browser. Rows keep the order the server gives unless a grid turns sorting on.
  */
 export const gridDefaults = {
   theme: gridTheme,

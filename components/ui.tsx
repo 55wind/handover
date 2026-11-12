@@ -1,42 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { MERCHANTS } from '@/lib/merchants';
-import type { Period, Tier } from '@/lib/types';
+import { useState, type CSSProperties } from 'react';
 
-const LEAD = new RegExp(`^(?:${Object.values(MERCHANTS).map((m) => m.name).join('|')}): (.)`);
+export const FAILED = 'That did not go through. Try again in a moment.';
 
-/** A desk's sentence opens with its merchant's name. Where a column beside it already gives the name, drop it. */
-export const withoutMerchant = (s: string) => s.replace(LEAD, (_, first: string) => first.toUpperCase());
-
-export const TIER: Record<Tier, string> = {
-  filed: 'Notice filed. The document has not been matched yet, so only reversible steps are available.',
-  verified: 'Document matched (demo-grade check).',
-};
-
-/** Money arrives as a decimal string in USD. Sums are done in whole cents. */
-export const cents = (s: string) => Math.round(Number(s) * 100);
-export const dollars = (n: number) => `$${(n / 100).toFixed(2)}`;
-
-const DAY = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-const utc = (ymd: string) => new Date(`${ymd}T00:00:00Z`);
-
-/** "2026-11-02" to "2 Nov 2026". Anything that is not a date comes back unchanged. */
-export function day(ymd: string) {
-  const d = utc(ymd);
-  return Number.isNaN(d.getTime()) ? ymd : DAY.format(d);
+/** GET without a body, POST with one. A network failure comes back as status 0, never as a throw. */
+export async function api(path: string, body?: unknown): Promise<{ status: number; data: any }> {
+  try {
+    const r = await fetch(path, body === undefined ? undefined : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    return { status: r.status, data: await r.json().catch(() => null) };
+  } catch {
+    return { status: 0, data: null };
+  }
 }
-
-/** A period's `end` is exclusive, so the last day shown is the day before it. */
-export function period(p: Period) {
-  const last = new Date(utc(p.end).getTime() - 86_400_000);
-  return `${day(p.start)} to ${Number.isNaN(last.getTime()) ? p.end : DAY.format(last)}`;
-}
-
-export const clock = (ts: string) => new Date(ts).toLocaleTimeString('en-GB');
-
-/** "ACTIVE" or "APPROVAL_PENDING" from PayPal, in sentence case. */
-export const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase().replaceAll('_', ' ');
 
 // A PayPal id: ten or more capitals, digits and hyphens, with at least one of each of the first two.
 const ID = /\b((?=[A-Z0-9-]*[A-Z])(?=[A-Z0-9-]*\d)[A-Z0-9][A-Z0-9-]{9,})\b/;
@@ -64,5 +40,42 @@ export function CopyId({ value }: { value: string }) {
         {copied && 'Copied'}
       </span>
     </>
+  );
+}
+
+/**
+ * Hours drawn as lengths on one scale. The outline is what the list price costs, the solid bar what the fair
+ * price costs. `max` is the number of hours that fills the track.
+ */
+export function Bar({ list, fair, max }: { list: number; fair: number; max: number }) {
+  return (
+    <span className="bar" aria-hidden="true" style={{ '--list': list / max, '--fair': fair / max } as CSSProperties}>
+      <i className="bar__list" />
+      <i className="bar__fair" />
+    </span>
+  );
+}
+
+export const DIAL = { label: 'Fairness dial', lo: '0: the same dollars everywhere', hi: '100: the same hours everywhere' };
+
+/** A setting from 0 to 100. The tick at `saved` marks where the seller left it, so a preview can be compared with it. */
+export function Slider(p: { id: string; label: string; lo: string; hi: string; value: number; saved: number; unit?: string; onChange: (n: number) => void }) {
+  return (
+    <div className="dial">
+      <div className="split">
+        <label htmlFor={p.id}>{p.label}</label>
+        <output htmlFor={p.id} className="dial__value num">
+          {p.value}
+          {p.unit}
+        </output>
+      </div>
+      <div className="dial__track" style={{ '--at': p.saved } as CSSProperties}>
+        <input id={p.id} type="range" min={0} max={100} value={p.value} onChange={(e) => p.onChange(Number(e.target.value))} aria-describedby={`${p.id}-ends`} />
+      </div>
+      <div className="dial__ends small" id={`${p.id}-ends`}>
+        <span>{p.lo}</span>
+        <span>{p.hi}</span>
+      </div>
+    </div>
   );
 }
