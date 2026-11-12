@@ -308,7 +308,7 @@ Checks:
 
 `render.yaml` describes one web service on the free plan: Node 24, `npm ci && npm run build` to build, `npm start` to run, health check on `/`.
 
-Set these in the Render dashboard: `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (and, if needed, `OPENAI_BASE_URL` and `LLM_MODEL`), `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `SHOP_PAYOUT_EMAIL` and `APP_URL`. If `APP_URL` is empty, the address Render gives the service is used. Do not set `PAYPAL_FAKE` or `LLM_SCRIPTED`.
+Render asks for four values when the Blueprint is created: `ANTHROPIC_API_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` and `SHOP_PAYOUT_EMAIL`. To use OpenAI instead of the Claude API, add `OPENAI_API_KEY` (and `LLM_MODEL` if wanted) in the dashboard. `APP_URL` is not needed: the address Render gives the service is used for PayPal's return links. Do not set `PAYPAL_FAKE` or `LLM_SCRIPTED`.
 
 ## Limits and honest caveats
 

@@ -9,19 +9,14 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "24"
-      - key: APP_URL
-        sync: false
+      # The language model: the Claude API. To use OpenAI instead, add OPENAI_API_KEY (and LLM_MODEL) in the dashboard.
       - key: ANTHROPIC_API_KEY
         sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_BASE_URL
-        sync: false
-      - key: LLM_MODEL
-        sync: false
+      # The platform's PayPal sandbox app, and the sandbox account that stands for the shops.
       - key: PAYPAL_CLIENT_ID
         sync: false
       - key: PAYPAL_CLIENT_SECRET
         sync: false
       - key: SHOP_PAYOUT_EMAIL
         sync: false
+# APP_URL is not needed on Render: the address Render gives the service (RENDER_EXTERNAL_URL) is used for PayPal's return links.
