@@ -60,59 +60,24 @@ The figures below use the numbers of the end-to-end check: abalone porridge at $
 
 ### One treat, start to finish
 
-```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 520}}}%%
-flowchart TD
-    S1(["1 - Sender: My mom in Busan has a cold. Get her something warm tonight."])
-    E1["2 - Errand agent looks up shops near her, picks a dish, writes the card in Korean"]
-    C1[["3 - Code works out the price, $10.48, and the hold, $14.00"]]
-    P1[("4 - PayPal: the sender approves, $14.00 is held, nothing is taken")]
-    R1(["5 - Recipient opens the link: the card, the dish, a code. No price."])
-    H1["6 - Host agent talks to her in Korean and changes the dish within the hold"]
-    K1(["7 - At the shop she shows the code and the shopkeeper enters it"])
-    T1["8 - Till agent asks to take the payment and to pay the shop"]
-    C2[["9 - Code checks the shop, the time and the hold"]]
-    P2[("10 - PayPal: $6.74 captured, the other $7.26 released, $6.74 paid out to the shop")]
-    C3[["11 - Code reads the order back from PayPal"]]
-    S2(["12 - Sender sees: Mom is having the vegetable porridge. Confirmed with PayPal."])
-    S1 --> E1 --> C1 --> P1 --> R1 --> H1 --> K1 --> T1 --> C2 --> P2 --> C3 --> S2
-```
-
-Rounded boxes are people, plain boxes are agents (a language model with tools), double-edged boxes are code, and cylinders are PayPal.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/flows/one-treat-dark.png">
+  <img alt="One treat in twelve numbered steps. 1: the sender writes: My mom in Busan has a cold. Get her something warm tonight. 2: the errand agent finds shops near her, picks a dish and writes the card in Korean. 3: code works out the price, $10.48, and the hold, $14.00. 4: at PayPal the sender approves, $14.00 is held and nothing is taken. 5: the recipient opens the link and sees the card, the dish and a code, but no price. 6: the host agent talks to her in Korean and changes the dish within the hold. 7: at the shop she shows the code and the shopkeeper enters it. 8: the till agent asks to take the payment and to pay the shop. 9: code checks the shop, the time and the hold. 10: PayPal captures $6.74, releases the other $7.26 and pays $6.74 to the shop. 11: code reads the order back from PayPal. 12: the sender sees that Mom is having the vegetable porridge, confirmed with PayPal. The agents and the code run inside the Next.js app on Render; steps 4 and 10 happen in the PayPal sandbox." src="docs/flows/one-treat.png" width="760">
+</picture>
 
 ### Where the money is
 
-```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 520}}}%%
-flowchart TD
-    A["Sender's PayPal account"]
-    B(("Held by PayPal, not taken"))
-    C["Platform's PayPal account"]
-    D["Shop's PayPal account"]
-    A -- "the sender approves a hold of $14.00" --> B
-    B -- "she eats: $6.74 is captured" --> C
-    C -- "payout of $6.74" --> D
-    B -. "the other $7.26 is released" .-> A
-    B -. "declined, cancelled or not used in three days: all $14.00 is released" .-> A
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/flows/money-dark.png">
+  <img alt="Where the money is, shown as four places inside the PayPal sandbox: the sender's account, held by PayPal and not taken, the platform's account and the shop's account. 1: the sender approves a hold of $14.00. 2: when she eats, $6.74 is captured into the platform's account. 3: a payout of $6.74 goes to the shop's account. A dashed arrow from the hold back to the sender's account shows the other $7.26 being released. A second dashed arrow shows that all $14.00 is released when the treat is declined, cancelled or not used in three days." src="docs/flows/money.png" width="760">
+</picture>
 
 ### The life of a treat
 
-```mermaid
-stateDiagram-v2
-    [*] --> draft: the sender starts talking to the errand agent
-    draft --> draft: the agent proposes or changes the treat
-    draft --> approving: the sender presses Hold and an order is created
-    approving --> held: PayPal reports the approval and the hold is placed
-    approving --> released: stopped before approval, nothing was held
-    held --> held: the recipient changes the dish within the hold
-    held --> settling: the code is shown at the right shop
-    settling --> enjoyed: the price is captured, the rest released, the shop paid
-    settling --> held: the payment was not taken, the treat stays good
-    held --> released: the recipient says no, the sender cancels, or three days pass
-    enjoyed --> [*]
-    released --> [*]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/flows/life-dark.png">
+  <img alt="The six states of a treat. In draft the sender talks to the errand agent, which proposes or changes the treat. 1: the sender presses Hold and an order is created; the treat is approving while the sender is at PayPal. 2: PayPal reports the approval and the hold is placed; the treat is held, and the recipient may change the dish within the hold. 3: the code is shown at the right shop; the treat is settling while the counter is taking payment. 4: the price is captured, the rest released and the shop paid; the treat is enjoyed. Dashed arrows show the paths on which nothing is taken: from settling back to held when the payment was not taken and the treat stays good; from approving to released when it is stopped before approval and nothing was held; from held to released when the recipient says no, the sender cancels or three days pass." src="docs/flows/life.png" width="760">
+</picture>
 
 | State | What PayPal holds | What has been taken |
 |---|---|---|
@@ -123,78 +88,33 @@ stateDiagram-v2
 
 ### The recipient changes the treat
 
-```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 520}}}%%
-flowchart TD
-    R1(["Recipient writes in her own language: I can't eat seafood."])
-    H1["Host agent asks code what else is possible"]
-    C1[["Code lists dishes in the same city that fit the hold. It gives no prices."]]
-    H2["Host agent picks vegetable porridge and asks code to change the treat"]
-    C2{"Code checks: same city? within $14.00? still held and in time?"}
-    X["Refused. The treat stays as it was."]
-    OK[["Changed. The price is now $6.74 of the $14.00 held."]]
-    H3["Host agent answers in Korean. The same code still works."]
-    R1 --> H1 --> C1 --> H2 --> C2
-    C2 -- "no" --> X
-    C2 -- "yes" --> OK --> H3
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/flows/change-dark.png">
+  <img alt="The recipient changes the treat, in seven numbered steps. 1: the recipient writes in her own language that she cannot eat seafood. 2: the host agent asks code what else is possible. 3: code answers with dishes in the same city that fit the hold, and gives no prices. 4: the host agent picks vegetable porridge and asks code to change the treat. 5: the rules in code check three things: the same city, within $14.00, still held and in time. If yes, the treat is changed and the price is now $6.74 of the $14.00 held. If no, a dashed arrow leads to refused and the treat stays as it was. 6 and 7: the host agent answers the recipient in Korean, and the same code still works." src="docs/flows/change.png" width="760">
+</picture>
 
 The host agent is never given a price, so it cannot reveal one.
 
 ### At the counter: the model proposes, code decides, PayPal confirms
 
-```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 520}}}%%
-flowchart TD
-    A["The shopkeeper enters the code"] --> B{"Code checks: a live treat, for this shop, in time?"}
-    B -- "no" --> B1["Refused with the reason. Nothing changes."]
-    B -- "yes" --> C{"Is a model available?"}
-    C -- "yes" --> D["Till agent calls read_order, take_payment, pay_shop, finish"]
-    C -- "no: it failed, or the day's allowance is spent" --> E["The same steps, driven by code"]
-    D --> F{"Do the rules in code allow the step?"}
-    E --> F
-    F -- "no" --> G["The step is refused. Nothing is taken."]
-    F -- "yes" --> H["PayPal: final capture of the price, then a payout to the shop"]
-    G --> I["Closing check: code reads the order back from PayPal"]
-    H --> I
-    I --> J{"What does PayPal show?"}
-    J -- "a capture" --> K["Enjoyed. The agent's words are shown only if they agree with this."]
-    J -- "no capture, and the hold is still open" --> L["Held again. The treat stays good and the counter can try again."]
-    J -- "no capture and no hold" --> M["Released. Nothing was taken."]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/flows/counter-dark.png">
+  <img alt="What happens at the counter. 1: the shopkeeper enters the code. Code checks that it is a live treat, for this shop and in time; if not, a dashed arrow goes back to the shopkeeper: refused with the reason. 2: if the check passes, the till agent calls read_order, take_payment, pay_shop and finish. If there is no model, because it failed or its allowance is spent, code alone takes the same steps. 3: each step goes to the rules in code, which allow it or refuse it. 4: if allowed, PayPal makes a final capture of the price and then a payout to the shop. If refused, a dashed arrow shows that nothing is taken. 5: in the closing check, code reads the order back from PayPal. 6: three results follow from what PayPal shows. A capture: enjoyed, and the agent's words are shown only if they agree with PayPal. No capture and the hold still open: held again, the treat stays good and the counter can try again. No capture and no hold: released, nothing was taken." src="docs/flows/counter.png" width="760">
+</picture>
 
 ### When the meal is not eaten
 
-```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 520}}}%%
-flowchart TD
-    H["The treat is held: PayPal holds the money"] --> Q{"What happens?"}
-    Q -- "the recipient tells the host no" --> D["Host agent calls decline, with one kind sentence for the sender"]
-    Q -- "the sender presses Cancel" --> X["Cancel"]
-    Q -- "three days pass" --> E["Noticed the next time anyone opens the treat, the ledger or the counter"]
-    D --> V["Code voids the authorization at PayPal"]
-    X --> V
-    E --> V
-    V --> R["Code reads the order back: no capture, no open hold"]
-    R --> Z["Released. Nothing was taken, and the sender is told."]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/flows/unused-dark.png">
+  <img alt="When the meal is not eaten. Three ways lead in: the recipient tells the host no, and the host agent calls decline with one kind sentence for the sender; the sender presses Cancel; or three days pass, which is noticed the next time anyone opens the treat, the ledger or the counter. All three lead to the same steps, drawn with dashed arrows because nothing is taken. 1: code voids the authorization at PayPal, which was holding the money and releases the hold. 2: code reads the order back and finds no capture and no open hold. 3: the treat is released, nothing was taken, and the sender is told." src="docs/flows/unused.png" width="760">
+</picture>
 
 ### An AI assistant sends the treat (MCP)
 
-```mermaid
-%%{init: {"flowchart": {"wrappingWidth": 520}}}%%
-flowchart TD
-    U1(["User tells their AI assistant: Dad's birthday is on Friday. Send him a cake."])
-    A1["The assistant calls find_treats for Kraków on the MCP treat desk"]
-    M1[["The desk answers with shops, menus and prices"]]
-    A2["The assistant calls send_treat: a slice of cheesecake and a card in Polish"]
-    M2[["The desk creates the order and answers with a PayPal link"]]
-    U2(["The user opens the link and approves the hold. Nothing is taken."])
-    A3["The assistant calls treat_status"]
-    M3[["The desk asks PayPal, places the hold and answers with the link for the recipient"]]
-    R1(["The assistant passes the link to Dad. From here it is the same treat: the counter, the capture, the payout."])
-    U1 --> A1 --> M1 --> A2 --> M2 --> U2 --> A3 --> M3 --> R1
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/flows/assistant-dark.png">
+  <img alt="An AI assistant sends the treat over MCP, in eight numbered steps. 1: the user tells their AI assistant that Dad's birthday is on Friday and asks it to send him a cake. 2: the assistant calls find_treats for Kraków, and the MCP treat desk answers with shops, menus and prices. 3: the assistant calls send_treat with a slice of cheesecake and a card in Polish; the desk creates the order at PayPal and answers with a PayPal link. 4: the assistant gives the PayPal link to the user. 5: the user opens the link and approves the hold; nothing is taken. 6: the assistant calls treat_status. 7: the desk asks PayPal, places the hold and answers with the link for the recipient. 8: the assistant passes the link to Dad. From there it is the same treat: the counter, the capture, the payout." src="docs/flows/assistant.png" width="760">
+</picture>
 
 ## Try it
 
@@ -253,9 +173,16 @@ The base address is fixed in code to `https://api-m.sandbox.paypal.com`, so this
 
 ## How AI is used
 
-Three agents run on one tool loop (`lib/agent.ts`) against an OpenAI-compatible chat completions endpoint with tool calling.
+Three agents run on one tool loop (`lib/agent.ts`). The loop does not care which model answers. Two providers are supported:
 
-**TODO**: name the model. It has not been chosen yet. Any provider with an OpenAI-compatible endpoint and tool calling fits (`OPENAI_API_KEY`, `OPENAI_BASE_URL`, `LLM_MODEL`). No image input is needed.
+- **Claude API**, through Anthropic's SDK (`ANTHROPIC_API_KEY`). The default model is `claude-haiku-5-5`.
+- **OpenAI**, or any provider with an OpenAI-compatible chat completions endpoint and tool calling (`OPENAI_API_KEY`, `OPENAI_BASE_URL`). The default model is `gpt-6-luna`.
+
+`LLM_MODEL` chooses another model. No image input is needed.
+
+**TODO**: say which model the hosted demo runs on, with the result of `npm run eval` for it. No run with a real model has been made yet.
+
+**Keeping it cheap without losing accuracy.** Every amount and every yes-or-no about money is decided in code, so the model only has to look things up, choose a dish and write a few sentences. That is why the defaults are the cheapest current models ($0.10 per million input tokens and $0.50 per million output tokens on both providers' price pages on 2026-11-12). Three more measures: when the sender names exactly one city, code hands the agent that city's shops with the conversation, which saves a model call per treat; on the Claude API the instructions and tool list are cached and thinking runs at low effort (`LLM_EFFORT`); and daily caps bound what a public demo can spend. `npm run eval` runs 18 checks of the three agents against the configured model (a warm dish for a cold, no seafood, a budget, the card's language, no amount ever said to the recipient, the counter) and prints the tokens used and the cost per treat, so a dearer model is chosen only if the cheap one fails a check.
 
 | Agent | Talks to | Tools |
 |---|---|---|
@@ -301,7 +228,7 @@ All of these are in `lib/rules.ts`, `lib/treats.ts` and `lib/till.ts`. No model 
 ℹ fail 0
 ```
 
-**End to end, in one process.** `npm run e2e` drives the whole flow on the stand-in for PayPal, because a real sandbox checkout needs a person to approve it in a browser. It uses the configured model when `OPENAI_API_KEY` and `LLM_MODEL` are set; `E2E_SCRIPTED=1` forces the scripted stand-in. Output of `E2E_SCRIPTED=1 npm run e2e` on 2026-11-12:
+**End to end, in one process.** `npm run e2e` drives the whole flow on the stand-in for PayPal, because a real sandbox checkout needs a person to approve it in a browser. It uses the model behind `OPENAI_API_KEY` when `LLM_MODEL` is also set; `E2E_SCRIPTED=1` forces the scripted stand-in. Output of `E2E_SCRIPTED=1 npm run e2e` on 2026-11-12:
 
 ```
 model: scripted stand-in   paypal: development stand-in
@@ -361,11 +288,11 @@ claude mcp add --transport http have-you-eaten https://TODO-host/api/mcp
 
 ## Run it locally
 
-Requirements: Node 24 (the version `render.yaml` pins; `package.json` does not declare one, and the checks above ran on Node v24.12.0), a PayPal developer account, and an API key for a provider with an OpenAI-compatible chat completions endpoint and tool calling.
+Requirements: Node 24 (the version `render.yaml` pins; `package.json` does not declare one, and the checks above ran on Node v24.12.0), a PayPal developer account, and an API key for the Claude API, for OpenAI, or for another provider with an OpenAI-compatible chat completions endpoint and tool calling.
 
 1. In the [PayPal developer dashboard](https://developer.paypal.com/dashboard/), create a US sandbox business account and a REST app for it. This is the platform. Create two sandbox personal accounts: one to pay as the sender, one to stand for the shops.
 2. `npm install`
-3. Copy `.env.example` to `.env.local`. Fill in `OPENAI_API_KEY`, `LLM_MODEL` (and `OPENAI_BASE_URL` if the provider is not OpenAI), `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `SHOP_PAYOUT_EMAIL` (the second personal account) and `APP_URL` (the address PayPal sends the sender back to).
+3. Copy `.env.example` to `.env.local`. Fill in `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (plus `OPENAI_BASE_URL` and `LLM_MODEL` if the provider is neither), `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `SHOP_PAYOUT_EMAIL` (the second personal account) and `APP_URL` (the address PayPal sends the sender back to).
 4. `npm run probe` signs in to the sandbox, creates one $5.00 order with intent `AUTHORIZE` and prints its approval link. Open the link and approve as the sandbox buyer, then run `npx tsx scripts/probe.ts <order id>`. It places the hold, takes $2.10, shows that the rest is released and pays $2.10 to `SHOP_PAYOUT_EMAIL`.
 5. `npm run dev`, then open http://localhost:3000.
 
@@ -381,7 +308,7 @@ Checks:
 
 `render.yaml` describes one web service on the free plan: Node 24, `npm ci && npm run build` to build, `npm start` to run, health check on `/`.
 
-Set these in the Render dashboard: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `LLM_MODEL`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `SHOP_PAYOUT_EMAIL` and `APP_URL`. If `APP_URL` is empty, the address Render gives the service is used. Do not set `PAYPAL_FAKE` or `LLM_SCRIPTED`.
+Set these in the Render dashboard: `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (and, if needed, `OPENAI_BASE_URL` and `LLM_MODEL`), `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `SHOP_PAYOUT_EMAIL` and `APP_URL`. If `APP_URL` is empty, the address Render gives the service is used. Do not set `PAYPAL_FAKE` or `LLM_SCRIPTED`.
 
 ## Limits and honest caveats
 
