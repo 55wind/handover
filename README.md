@@ -6,7 +6,7 @@ An entry for the PayPal AI Hackathon 2026. It runs on the PayPal sandbox only: n
 
 - Repository: https://github.com/55wind/have-you-eaten
 - Live demo: https://have-you-eaten.onrender.com (Render's free plan: after 15 minutes without a visitor the first page can take about a minute to wake up, and the ledger starts empty again)
-- Video: **TODO** (YouTube address, added after recording)
+- Video: https://youtu.be/thxfE-DK7f0 (2 minutes 52 seconds)
 
 ## Why
 

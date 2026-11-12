@@ -95,7 +95,7 @@ PayPal Orders API, PayPal Payments API, PayPal Payouts API, PayPal Agent Toolkit
 
 - Repository: https://github.com/55wind/have-you-eaten
 - Live demo: https://have-you-eaten.onrender.com
-- Video: TODO
+- Video: https://youtu.be/thxfE-DK7f0
 
 ## Testing instructions for judges
 
