@@ -52,8 +52,9 @@ function view(o: Json): OrderView {
   return {
     status: o.status,
     amount: unit?.amount?.value,
-    payerId: o.payer?.payer_id ?? o.payment_source?.paypal?.account_id, // PayPal marks `payer` as deprecated
-    payerCountry: o.payer?.address?.country_code ?? o.payment_source?.paypal?.address?.country_code,
+    // PayPal marks `payer` as deprecated and reports the same details under payment_source.paypal, so that is read first.
+    payerId: o.payment_source?.paypal?.account_id ?? o.payer?.payer_id,
+    payerCountry: o.payment_source?.paypal?.address?.country_code ?? o.payer?.address?.country_code,
     authorizationId: authorization?.id,
     authorizationStatus: authorization?.status,
     captureId: capture?.id,

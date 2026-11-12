@@ -29,7 +29,7 @@ A neighbourhood shopkeeper knows who is a student and who has had a hard month, 
 
 ### Prior art, stated honestly
 
-Regional pricing exists: game stores and streaming services set prices per country, and some creators offer "parity" discount codes based on IP location, which VPNs defeat. What is new here: the price is expressed in time, residence is proven by the wallet at settlement, it holds when the buyer is an AI agent, and richer buyers can cover part of someone else's price.
+Regional pricing exists: game stores and streaming services set prices per country. Creator tools offer "parity" discounts: most go by IP location, which VPNs defeat, and Gumroad's can also require that the buyer's location matches the country of their payment method, so checking the payment method is not new either. Apps that show a price as hours of the user's own wage also exist. What is new here: the price is expressed in time, residence is proven by the wallet at settlement, it holds when the buyer is an AI agent, and richer buyers can cover part of someone else's price.
 
 ## 2. Goals, non-goals, anti-goals
 

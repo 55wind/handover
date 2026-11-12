@@ -123,10 +123,10 @@ PayPal calls. The base address is fixed in code to `https://api-m.sandbox.paypal
 
 ## Prior art
 
-Regional pricing is not new. Game stores and streaming services set prices per country, and some creators offer "parity" discount codes based on the visitor's IP address, which a VPN defeats. What is different here:
+Regional pricing is not new. Game stores and streaming services set prices per country. Creator tools offer "parity" discounts: most go by the visitor's IP address, which a VPN defeats, and Gumroad's can also require that the buyer's location matches the country of their payment method. So checking the payment method is not new either. What is different here:
 
 - The price is stated in time, so buyer and seller can see what it costs in each place.
-- Residence is checked at settlement, from the wallet that pays, and a mismatch takes no money.
+- Residence is read from the PayPal wallet before any hold is placed. A mismatch takes no money and is offered the right price.
 - The check still works when an AI agent does the shopping, where the request's IP address says nothing about the person paying.
 - A pool, opened by the seller and added to by buyers, lets a clerk lower the price for one person, inside caps.
 
