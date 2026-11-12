@@ -44,7 +44,17 @@ export function scripted(): Llm {
       const found = results[0]?.data;
       if (!found?.city) return { content: `No shop takes part there yet. Shops take part in ${(found?.cities_taking_part ?? []).join(', ')}.` };
       if (turn === 1) {
-        const want = /cold|sick|flu|unwell|ill\b|fever|아프|감기/i.test(all) ? ['warm', 'light'] : /birthday|celebrat|anniversar|생일/i.test(all) ? ['celebration'] : /exam|study|tired|night shift|work|deadline/i.test(all) ? ['coffee'] : /breakfast|morning/i.test(all) ? ['breakfast'] : ['warm'];
+        const want = /cold|sick|flu|unwell|ill\b|fever|아프|감기/i.test(all)
+          ? ['warm', 'light']
+          : /birthday|celebrat|anniversar|생일/i.test(all)
+            ? ['celebration']
+            : /lunch|dinner|meal|hungry|proper food|something to eat/i.test(all)
+              ? ['filling', 'warm']
+              : /exam|study|tired|night shift|work|deadline/i.test(all)
+                ? ['coffee']
+                : /breakfast|morning/i.test(all)
+                  ? ['breakfast']
+                  : ['warm'];
         const avoid = [/vegetarian|no meat/i.test(all) && 'meat', /no seafood|allergic to (fish|seafood|shellfish)/i.test(all) && 'seafood', /not spicy|no spice/i.test(all) && 'spicy'].filter(Boolean) as string[];
         const budget = all.match(/\$\s?(\d{1,2}(?:\.\d{1,2})?)/)?.[1];
         let best: { shop: any; item: any; score: number } | null = null; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -88,7 +98,7 @@ export function scripted(): Llm {
       if (ctx.start) return { content: HELLO[lang](ctx.recipient.name, ctx.sender.name, ctx.treat.dish_local_name, ctx.treat.shop_local_name, ctx.good_until) };
       const said = String(ctx.conversation.at(-1)?.text ?? '');
       const last = results.at(-1);
-      if (/no thanks|can.?t make it|cannot make it|not in town|decline|못 가|안 갈/i.test(said)) {
+      if (/no,? thank|can.?t make it|cannot make it|not in town|decline|못 가|안 갈/i.test(said)) {
         if (turn === 0) return { content: null, tool_calls: [call('decline', { for_sender: `${ctx.recipient.name} cannot use the treat this time and thanks you for thinking of them.` })] };
         return { content: 'Understood. I have told them, and nothing is taken from them.' };
       }

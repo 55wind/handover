@@ -10,6 +10,9 @@ export const stamp = (ts: string) => STAMP.format(new Date(ts));
 export const usd = (money: string | number | undefined | null) =>
   money === undefined || money === null || money === '' ? '' : `$${typeof money === 'number' ? money.toFixed(2) : money}`;
 
+/** The first letter as a capital, for a name or a phrase that opens a sentence. */
+export const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
 /** "07:30-20:30" as it reads in a sentence: "07:30 to 20:30". */
 export const hours = (h: string) => h.replace('-', ' to ');
 

@@ -2,7 +2,7 @@
 
 import { use, useCallback, useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { hours, stamp, usd } from '@/components/format';
+import { cap, hours, stamp, usd } from '@/components/format';
 import { CopyId, FAILED, api, errorOf } from '@/components/ui';
 import { fromCents, localLabel, usdCents } from '@/lib/rules';
 import { SHOPS, shopById } from '@/lib/shops';
@@ -105,8 +105,8 @@ export default function ShopPage({ params, searchParams }: { params: Promise<{ i
       <header className="page-head">
         <h1 lang={shop.language}>{shop.localName}</h1>
         <p>
-          {shop.localName !== shop.name && `${shop.name}, `}
-          {shop.kind} in {shop.area}, {shop.city}. {shop.keeper} is at the counter. Open {hours(shop.hours)}.
+          {shop.localName !== shop.name ? `${shop.name}, ${shop.kind}` : cap(shop.kind)} in {shop.area}, {shop.city}. {shop.keeper} is at
+          the counter. Open {hours(shop.hours)}.
         </p>
         <p className="small muted">This is the shop’s screen. The shop and {shop.keeper} are fictional.</p>
       </header>
@@ -128,7 +128,7 @@ export default function ShopPage({ params, searchParams }: { params: Promise<{ i
               autoComplete="off"
               autoCapitalize="characters"
               spellCheck={false}
-              disabled={busy}
+              readOnly={busy}
             />
           </label>
           <button className="btn" type="submit" disabled={busy || !code.trim()} aria-busy={busy}>

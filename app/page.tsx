@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { hours } from '@/components/format';
+import { cap, hours } from '@/components/format';
 import { fromCents, localLabel, usdCents } from '@/lib/rules';
 import { CITIES, FX, HOLD_DAYS, SHOPS } from '@/lib/shops';
 
@@ -138,8 +138,8 @@ export default function Home() {
                         {shop.localName}
                       </p>
                       <p className="small muted">
-                        {shop.localName !== shop.name && `${shop.name}, `}
-                        {shop.kind} in {shop.area}. Open {hours(shop.hours)}.
+                        {shop.localName !== shop.name ? `${shop.name}, ${shop.kind}` : cap(shop.kind)} in {shop.area}. Open{' '}
+                        {hours(shop.hours)}.
                       </p>
                       <p className="small">
                         <Link href={`/shop/${shop.id}`}>{shop.keeper}’s counter</Link>

@@ -1,9 +1,9 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Activity } from '@/components/Activity';
-import { dayAndTime, hours, usd } from '@/components/format';
+import { cap, dayAndTime, hours, usd } from '@/components/format';
 import { CopyId, api, errorOf, useCopy } from '@/components/ui';
 import { useLive } from '@/components/useLive';
 import { localLabel } from '@/lib/rules';
@@ -12,7 +12,6 @@ import type { Treat } from '@/lib/types';
 
 type Query = Promise<{ [key: string]: string | string[] | undefined }>;
 
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function working(t: Treat): string {
   if (!t.running) return '';
@@ -101,6 +100,14 @@ export default function TreatPage({ params, searchParams }: { params: Promise<{ 
   const [armed, setArmed] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState('');
+  // When the sender keeps the treat after all, the keyboard goes back to the button it came from.
+  const cancelButton = useRef<HTMLButtonElement>(null);
+  const kept = useRef(false);
+  useEffect(() => {
+    if (armed || !kept.current) return;
+    kept.current = false;
+    cancelButton.current?.focus();
+  }, [armed]);
 
   if (!t) {
     return (
@@ -144,12 +151,22 @@ export default function TreatPage({ params, searchParams }: { params: Promise<{ 
       <button className="btn" type="button" onClick={cancel} disabled={cancelling} aria-busy={cancelling}>
         {cancelling ? 'Cancelling' : waiting ? 'Yes, cancel this treat' : 'Yes, release the hold'}
       </button>
-      <button className="btn btn--quiet" type="button" onClick={() => setArmed(false)} disabled={cancelling}>
+      {/* The safe answer takes the keyboard first, so pressing Enter twice does not cancel. */}
+      <button
+        className="btn btn--quiet"
+        type="button"
+        autoFocus
+        onClick={() => {
+          kept.current = true;
+          setArmed(false);
+        }}
+        disabled={cancelling}
+      >
         Keep the treat
       </button>
     </>
   ) : (
-    <button className="btn btn--quiet" type="button" onClick={() => setArmed(true)}>
+    <button className="btn btn--quiet" type="button" ref={cancelButton} onClick={() => setArmed(true)}>
       {waiting ? 'Cancel this treat' : 'Cancel and release the hold'}
     </button>
   );

@@ -148,18 +148,22 @@ export async function releaseTreat(t: Treat, forSender: string, actor: Event['ac
   try {
     const pp = backend();
     let verified = true;
+    let held = false; // whether PayPal was holding money that is now given back
     if (t.paypal.orderId) {
       let order = await pp.getOrder(t.paypal.orderId);
       if (order.captureId) return 'This treat has already been used.';
       if (openHold(order)) {
+        held = true;
         await pp.voidAuthorization(order.authorizationId!);
         order = await pp.getOrder(t.paypal.orderId);
       }
       verified = !order.captureId && !openHold(order);
     }
     t.status = 'released';
-    t.outcome = { enjoyed: false, verified, forSender, released: t.ceiling };
-    store.emit(t.id, { actor, type: 'outcome', summary: `Released. ${forSender}` });
+    // A treat stopped before the sender approved at PayPal never had a hold: say so instead of reporting a release.
+    const text = held ? forSender : 'The treat was stopped before PayPal held any money. Nothing was held and nothing was taken.';
+    t.outcome = { enjoyed: false, verified, forSender: text, ...(held ? { released: t.ceiling } : {}) };
+    store.emit(t.id, { actor, type: 'outcome', summary: held ? `Released. ${text}` : text });
     return null;
   } catch (e) {
     store.emit(t.id, { actor: 'system', type: 'error', summary: `PayPal could not release the hold: ${(e as Error).message}` });
