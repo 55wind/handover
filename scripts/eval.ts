@@ -8,11 +8,15 @@ if (existsSync('.env.local')) process.loadEnvFile('.env.local');
 process.env.PAYPAL_FAKE = '1';
 delete process.env.LLM_SCRIPTED;
 
-/** USD per million tokens: input, output. Cache reads are a tenth of input, 5-minute cache writes 1.25 times input. */
-const PRICES: Record<string, [number, number]> = {
-  'claude-haiku-5-5': [0.1, 0.5],
-  'claude-sonnet-5-5': [2, 10],
-  'claude-opus-5-5': [4, 20],
+/** USD per million tokens: input, cached input, output (the providers' price pages, 2026-11-12). */
+const PRICES: Record<string, [number, number, number]> = {
+  'claude-haiku-5-5': [0.1, 0.01, 0.5],
+  'claude-sonnet-5-5': [2, 0.2, 10],
+  'claude-opus-5-5': [4, 0.4, 20],
+  'gpt-5-nano': [0.05, 0.005, 0.4],
+  'gpt-6-luna': [0.1, 0.01, 0.5],
+  'gpt-6.1-terra': [1, 0.05, 5],
+  'gpt-6.1-sol': [2, 0.1, 10],
 };
 
 interface ErrandCase {
@@ -40,7 +44,7 @@ const ERRANDS: ErrandCase[] = [
 ];
 
 async function main() {
-  const { defaultLlm, usage } = await import('../lib/agent');
+  const { defaultLlm, usage, modelName } = await import('../lib/agent');
   const { runErrand } = await import('../lib/errand');
   const { runHost } = await import('../lib/host');
   const { redeem } = await import('../lib/till');
@@ -48,12 +52,19 @@ async function main() {
   const { itemOf, shopById } = await import('../lib/shops');
   const { backend } = await import('../lib/paypal');
   const fake = await import('../lib/paypal-fake');
-  const model = process.env.ANTHROPIC_API_KEY ? process.env.LLM_MODEL || 'claude-haiku-5-5' : process.env.LLM_MODEL;
-  if (!process.env.ANTHROPIC_API_KEY && !(process.env.OPENAI_API_KEY && process.env.LLM_MODEL)) {
-    console.log('No language model is configured. Set ANTHROPIC_API_KEY, or OPENAI_API_KEY and LLM_MODEL, in .env.local.');
+  const model = modelName();
+  const claude = !!process.env.ANTHROPIC_API_KEY;
+  if (!claude && !process.env.OPENAI_API_KEY) {
+    console.log('No language model is configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in .env.local.');
     process.exit(1);
   }
   console.log(`model: ${model}   paypal: development stand-in\n`);
+  try {
+    await defaultLlm([{ role: 'system', content: 'Answer with the single word ok.' }, { role: 'user', content: 'ok?' }], []);
+  } catch (e) {
+    console.log(`The model cannot be reached, so nothing was evaluated: ${(e as Error).message}`);
+    process.exit(1);
+  }
   let pass = 0;
   let total = 0;
   const check = (label: string, problems: string[]) => {
@@ -136,12 +147,14 @@ async function main() {
   // ---- the bill ----
   console.log(`\n${pass} of ${total} checks passed.`);
   console.log(`tokens: ${usage.input} in (${usage.cacheRead} of them read from cache, ${usage.cacheWrite} written to cache), ${usage.output} out, in ${usage.calls} calls; ${(errandCalls / ERRANDS.length).toFixed(1)} calls per sender message.`);
-  const price = PRICES[model ?? ''];
+  const price = PRICES[model];
   if (price) {
-    const [inUsd, outUsd] = price;
-    // The Claude API counts cached tokens apart from input_tokens; the OpenAI-style count includes them.
-    const cost = (usage.input * inUsd + usage.cacheRead * inUsd * 0.1 + usage.cacheWrite * inUsd * 1.25 + usage.output * outUsd) / 1_000_000;
-    console.log(`cost of this run at $${inUsd} / $${outUsd} per million tokens: $${cost.toFixed(4)}. It covers about ${ERRANDS.length + 2} treats' worth of work, so roughly $${(cost / (ERRANDS.length + 2)).toFixed(4)} a treat.`);
+    const [inUsd, cachedUsd, outUsd] = price;
+    // The Claude API counts cached tokens apart from input_tokens (and charges 1.25 times input to write them);
+    // the OpenAI-style count of input tokens includes the cached ones.
+    const fresh = claude ? usage.input : usage.input - usage.cacheRead;
+    const cost = (fresh * inUsd + usage.cacheRead * cachedUsd + usage.cacheWrite * inUsd * 1.25 + usage.output * outUsd) / 1_000_000;
+    console.log(`cost of this run at $${inUsd} in / $${outUsd} out per million tokens: $${cost.toFixed(4)}. It covers about ${ERRANDS.length + 2} treats' worth of work, so roughly $${(cost / (ERRANDS.length + 2)).toFixed(4)} a treat.`);
   } else console.log('No price is on file for this model, so no cost is worked out. Multiply the tokens by the provider\'s rates.');
   process.exit(pass === total ? 0 : 1);
 }

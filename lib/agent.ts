@@ -84,6 +84,10 @@ const claudeLlm: Llm = async (messages, tools) => {
 };
 
 let client: OpenAI | undefined;
+/** The cheapest current OpenAI model with tool calling; the same price as the Claude default. */
+const OPENAI_MODEL = 'gpt-6-luna';
+/** Which model answers, for display and for working out cost. */
+export const modelName = (): string => (isScripted() ? 'scripted stand-in' : process.env.LLM_MODEL || (process.env.ANTHROPIC_API_KEY ? CLAUDE_MODEL : OPENAI_MODEL));
 let standIn: Llm | undefined;
 export const defaultLlm: Llm = async (messages, tools) => {
   if (isScripted()) {
@@ -91,13 +95,11 @@ export const defaultLlm: Llm = async (messages, tools) => {
     return standIn(messages, tools);
   }
   if (process.env.ANTHROPIC_API_KEY) return claudeLlm(messages, tools);
-  if (!process.env.OPENAI_API_KEY || !process.env.LLM_MODEL) {
-    throw new Error('No language model is configured. Set ANTHROPIC_API_KEY, or OPENAI_API_KEY and LLM_MODEL.');
-  }
+  if (!process.env.OPENAI_API_KEY) throw new Error('No language model is configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.');
   // A stalled model call must not leave a payment hanging: one minute, one retry.
   client ??= new OpenAI({ baseURL: process.env.OPENAI_BASE_URL || undefined, timeout: 60_000, maxRetries: 1 });
   const res = await client.chat.completions.create({
-    model: process.env.LLM_MODEL,
+    model: process.env.LLM_MODEL || OPENAI_MODEL,
     messages: messages.map((m) => (m.role === 'assistant' ? { role: m.role, content: m.content, ...(m.tool_calls ? { tool_calls: m.tool_calls } : {}) } : m)) as never,
     ...(tools.length ? { tools } : {}),
   });
