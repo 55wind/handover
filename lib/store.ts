@@ -1,70 +1,62 @@
-import { POOL_SEED } from './seller';
-import type { Event, Pool, Purchase, Quote } from './types';
+import type { Event, Treat } from './types';
 
-type Listener = (e: Event, p: Purchase) => void;
+type Listener = (e: Event | null, t: Treat) => void;
 
-/** What is counted per day. Each has its own allowance, so talking to the clerk cannot use up settlements. */
-export type Budget = 'clerk' | 'settle' | 'checkout';
+/** What is counted per day. Each has its own allowance, so chatting cannot use up settlements. */
+export type Budget = 'errand' | 'host' | 'till' | 'checkout';
 const LIMITS: Record<Budget, [env: string, fallback: number]> = {
-  clerk: ['DAILY_CLERK_LIMIT', 300], // model runs for conversation
-  settle: ['DAILY_SETTLE_LIMIT', 200], // model runs for settlement; past this the rules settle without a model
-  checkout: ['DAILY_CHECKOUT_LIMIT', 400], // orders created at PayPal
+  errand: ['DAILY_ERRAND_LIMIT', 300], // model runs for senders
+  host: ['DAILY_HOST_LIMIT', 300], // model runs for recipients
+  till: ['DAILY_TILL_LIMIT', 200], // model runs at the counter; past this the rules settle without a model
+  checkout: ['DAILY_CHECKOUT_LIMIT', 300], // orders created at PayPal
 };
 
 interface State {
-  purchases: Map<string, Purchase>;
-  quotes: Map<string, Quote>;
-  pool: Pool;
-  bought: Set<string>; // "payerId:productId" for captured purchases
+  treats: Map<string, Treat>; // by id
+  codes: Map<string, string>; // code -> id
   listeners: Map<string, Set<Listener>>;
   runs: { day: string; n: Partial<Record<Budget, number>> };
 }
 
-// ponytail: all state lives in this process and is lost on restart; move to a database if sales must outlive a deploy.
-const g = globalThis as { __fairHour?: State };
-const s: State = (g.__fairHour ??= {
-  purchases: new Map(),
-  quotes: new Map(),
-  // The seller opens the pool with a small sum, so the clerk can help the first buyer after a restart.
-  pool: { balance: POOL_SEED, entries: Number(POOL_SEED) > 0 ? [{ ts: new Date().toISOString(), ref: '', kind: 'seed', amount: POOL_SEED }] : [] },
-  bought: new Set(),
-  listeners: new Map(),
-  runs: { day: '', n: {} },
-});
+// ponytail: all state lives in this process and is lost on restart; move to a database if treats must outlive a deploy.
+// A hold that is forgotten this way is never taken: PayPal lets it lapse.
+const g = globalThis as { __haveYouEaten?: State };
+const s: State = (g.__haveYouEaten ??= { treats: new Map(), codes: new Map(), listeners: new Map(), runs: { day: '', n: {} } });
 
-const MAX_QUOTES = 5000;
-const MAX_PURCHASES = 3000;
+const MAX_TREATS = 3000;
 const age = (iso: string) => Date.now() - Date.parse(iso);
 
 export const store = {
-  purchases: s.purchases,
-  quotes: s.quotes,
-  pool: s.pool,
-  bought: s.bought,
+  treats: s.treats,
+  codes: s.codes,
 
-  /** Appends the event to the purchase and notifies anyone streaming it. */
-  emit(purchaseId: string, e: Omit<Event, 'ts'>): Event {
-    const p = s.purchases.get(purchaseId);
+  byCode(code: unknown): Treat | undefined {
+    const id = typeof code === 'string' ? s.codes.get(code.trim().toUpperCase()) : undefined;
+    return id ? s.treats.get(id) : undefined;
+  },
+
+  /** Appends the event to the treat and notifies anyone streaming it. */
+  emit(treatId: string, e: Omit<Event, 'ts'>): Event {
+    const t = s.treats.get(treatId);
     const event: Event = { ts: new Date().toISOString(), ...e };
-    if (!p) return event;
-    p.events.push(event);
-    for (const fn of s.listeners.get(purchaseId) ?? []) {
-      try {
-        fn(event, p);
-      } catch {
-        /* a broken stream must never stop the run that is reporting to it */
-      }
-    }
+    if (!t) return event;
+    t.events.push(event);
+    notify(t, event);
     return event;
   },
 
-  subscribe(purchaseId: string, fn: Listener): () => void {
-    let set = s.listeners.get(purchaseId);
-    if (!set) s.listeners.set(purchaseId, (set = new Set()));
+  /** Tells anyone streaming the treat that it changed without adding an event (a chat message, a new status). */
+  touch(t: Treat): void {
+    notify(t, null);
+  },
+
+  subscribe(treatId: string, fn: Listener): () => void {
+    let set = s.listeners.get(treatId);
+    if (!set) s.listeners.set(treatId, (set = new Set()));
     set.add(fn);
     return () => {
       set.delete(fn);
-      if (!set.size) s.listeners.delete(purchaseId);
+      if (!set.size) s.listeners.delete(treatId);
     };
   },
 
@@ -80,24 +72,28 @@ export const store = {
   },
 
   /**
-   * Forgets what can no longer be used: expired quotes, purchases never paid for, and attempts abandoned at PayPal.
-   * Sales that reached a result stay: they are the seller's ledger. Returns false while the shop holds too much to take more.
+   * Forgets what can no longer be used: drafts nobody finished and approvals abandoned at PayPal.
+   * Treats that reached a result stay: they are the ledger. Returns false while too much is held to take more.
    */
   makeRoom(): boolean {
-    for (const [id, q] of s.quotes) if (age(q.expiresAt) > 0) s.quotes.delete(id);
-    for (const [id, p] of s.purchases) {
-      if (p.running) continue;
-      if ((p.status === 'open' && age(p.createdAt) > 2 * 3600_000) || (p.status === 'approving' && age(p.createdAt) > 24 * 3600_000)) {
-        s.purchases.delete(id);
+    for (const [id, t] of s.treats) {
+      if (t.running) continue;
+      if ((t.status === 'draft' && age(t.createdAt) > 2 * 3600_000) || (t.status === 'approving' && age(t.createdAt) > 24 * 3600_000)) {
+        s.treats.delete(id);
+        s.codes.delete(t.code);
         s.listeners.delete(id);
       }
     }
-    return s.quotes.size < MAX_QUOTES && s.purchases.size < MAX_PURCHASES;
+    return s.treats.size < MAX_TREATS;
   },
 };
 
-/** The purchase as sent to a browser: without raw PayPal payloads in event details. */
-export function publicPurchase(p: Purchase): Purchase {
-  const slim = (detail: unknown) => (detail && typeof detail === 'object' && 'result' in detail ? { ...detail, result: undefined } : detail);
-  return { ...p, events: p.events.map((e) => ({ ...e, detail: slim(e.detail) })) };
+function notify(t: Treat, event: Event | null): void {
+  for (const fn of s.listeners.get(t.id) ?? []) {
+    try {
+      fn(event, t);
+    } catch {
+      /* a broken stream must never stop the run that is reporting to it */
+    }
+  }
 }

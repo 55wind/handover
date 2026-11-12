@@ -11,11 +11,11 @@ before(async () => {
   fake = await import('./paypal-fake');
 });
 
-const RETURN = 'https://shop.example/api/purchases/p1/return';
+const RETURN = 'https://shop.example/api/treats/p1/return';
 const CANCEL = 'https://shop.example/purchase/p1?cancelled=1';
-const create = (returnUrl = RETURN) => pp.createOrder({ amount: '7.25', description: 'Hand lettering basics', purchaseId: 'p1', returnUrl, cancelUrl: CANCEL });
+const create = (returnUrl = RETURN) => pp.createOrder({ amount: '7.25', description: 'Hand lettering basics', reference: 'p1', returnUrl, cancelUrl: CANCEL });
 /** An order approved by the wallet registered in this country. */
-async function approved(country = 'VN') {
+async function approved(country = 'CA') {
   const { orderId } = await create();
   fake.approve(orderId, fake.WALLETS.find((w) => w.country === country)!.id);
   return orderId;
@@ -25,10 +25,9 @@ async function authorized() {
   return { orderId, ...(await pp.authorizeOrder(orderId)) };
 }
 
-test('the eight demo wallets, one per country', () => {
-  assert.deepEqual(fake.WALLETS.map((w) => `${w.name}/${w.country}`), ['Linh/VN', 'Anna/DE', 'Tomás/BR', 'Aiko/JP', 'Sam/US', 'Ingrid/NO', 'Sunita/NP', 'Chidi/NG']);
-  assert.equal(fake.WALLETS[0].id, 'FAKEPAYERVN01');
-  assert.equal(new Set(fake.WALLETS.map((w) => w.id)).size, 8);
+test('the demo wallets a sender can approve as', () => {
+  assert.deepEqual(fake.WALLETS.map((w) => `${w.name}/${w.country}`), ['Ji-woo/CA', 'Tunde/DE', 'Sofía/US', 'Min-jun/KR']);
+  assert.equal(new Set(fake.WALLETS.map((w) => w.id)).size, fake.WALLETS.length);
 });
 
 test('happy path: create, approve as a wallet, authorize, capture', async () => {
@@ -77,26 +76,26 @@ test('refund after capture', async () => {
 test('approve returns the return URL with token and PayerID', async () => {
   const { orderId } = await create();
   assert.equal(fake.cancelUrlOf(orderId), CANCEL);
-  const next = new URL(fake.approve(orderId, 'FAKEPAYERVN01'));
+  const next = new URL(fake.approve(orderId, 'FAKEPAYERCA01'));
   assert.equal(next.origin + next.pathname, RETURN);
   assert.equal(next.searchParams.get('token'), orderId);
-  assert.equal(next.searchParams.get('PayerID'), 'FAKEPAYERVN01');
+  assert.equal(next.searchParams.get('PayerID'), 'FAKEPAYERCA01');
 
   // In development the app passes paths, and a return URL may already carry a query.
-  const a = (await create('/api/purchases/p1/return')).orderId;
-  assert.equal(fake.approve(a, 'FAKEPAYERJP01'), `/api/purchases/p1/return?token=${a}&PayerID=FAKEPAYERJP01`);
+  const a = (await create('/api/treats/p1/return')).orderId;
+  assert.equal(fake.approve(a, 'FAKEPAYERKR01'), `/api/treats/p1/return?token=${a}&PayerID=FAKEPAYERKR01`);
   const b = (await create('/back?from=paypal')).orderId;
-  assert.equal(fake.approve(b, 'FAKEPAYERJP01'), `/back?from=paypal&token=${b}&PayerID=FAKEPAYERJP01`);
+  assert.equal(fake.approve(b, 'FAKEPAYERKR01'), `/back?from=paypal&token=${b}&PayerID=FAKEPAYERKR01`);
 });
 
 test('approve refuses an unknown order, an unknown wallet and an order that is not awaiting approval', async () => {
   const { orderId } = await create();
-  assert.throws(() => fake.approve('NOSUCHORDER', 'FAKEPAYERVN01'), /does not exist/);
+  assert.throws(() => fake.approve('NOSUCHORDER', 'FAKEPAYERCA01'), /does not exist/);
   assert.throws(() => fake.approve(orderId, 'FAKEPAYERXX99'), /Unknown development wallet/);
   assert.equal((await pp.getOrder(orderId)).status, 'PAYER_ACTION_REQUIRED');
-  fake.approve(orderId, 'FAKEPAYERVN01');
+  fake.approve(orderId, 'FAKEPAYERCA01');
   assert.throws(() => fake.approve(orderId, 'FAKEPAYERDE01'), /not awaiting approval/);
-  assert.equal((await pp.getOrder(orderId)).payerCountry, 'VN', 'the first wallet stays');
+  assert.equal((await pp.getOrder(orderId)).payerCountry, 'CA', 'the first wallet stays');
   assert.equal(fake.cancelUrlOf('NOSUCHORDER'), undefined);
 });
 
@@ -167,4 +166,25 @@ test('failNext makes the next call of that method fail once, and changes nothing
   await assert.rejects(pp.authorizeOrder(orderId), { message: 'no authorizeOrder' });
   await assert.rejects(pp.voidAuthorization(authorizationId), { message: 'no voidAuthorization' });
   await assert.rejects(pp.refundCapture('anything', 'r'), { message: 'no refundCapture' });
+});
+
+test('part of a hold can be taken, which releases the rest; more than the hold cannot', async () => {
+  const { orderId, authorizationId } = await authorized();
+  await assert.rejects(pp.captureAuthorization(authorizationId, 'capture-too-much', '99.00'), /exceeds/);
+  const { captureId, status } = await pp.captureAuthorization(authorizationId, 'capture-part', '3.10');
+  assert.equal(status, 'COMPLETED');
+  const o = await pp.getOrder(orderId);
+  assert.equal(o.captureId, captureId);
+  assert.equal(o.capturedAmount, '3.10');
+  assert.equal(o.amount, '7.25');
+  assert.equal(o.authorizationStatus, 'CAPTURED', 'nothing more can be taken from this hold');
+  await assert.rejects(pp.captureAuthorization(authorizationId, 'capture-again', '1.00'), /already been captured/);
+});
+
+test('a payout is recorded once per reference', async () => {
+  const before = fake.payouts.length;
+  const r = await pp.payout({ email: 'shop@example.test', amount: '3.10', note: 'test', reference: 'treat-x1' });
+  assert.equal(r.status, 'SUCCESS');
+  await assert.rejects(pp.payout({ email: 'shop@example.test', amount: '3.10', note: 'test', reference: 'treat-x1' }), /already exists/);
+  assert.equal(fake.payouts.length, before + 1);
 });

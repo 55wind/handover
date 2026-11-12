@@ -1,7 +1,7 @@
 // npm run probe: one $1.00 order on the real sandbox, to see what PayPal reports about the payer. It authorises and voids; it never captures.
 import { existsSync } from 'node:fs';
 import { backend } from '../lib/paypal';
-import { appUrl, isFake } from '../lib/seller';
+import { appUrl, isFake } from '../lib/shops';
 
 if (existsSync('.env.local')) process.loadEnvFile('.env.local');
 
@@ -13,8 +13,8 @@ async function main() {
   if (!orderId) {
     const made = await pp.createOrder({
       amount: '1.00',
-      description: 'Fair Hour probe',
-      purchaseId: 'probe',
+      description: 'Have You Eaten? probe',
+      reference: 'probe',
       returnUrl: `${appUrl()}/probe/approved`,
       cancelUrl: `${appUrl()}/probe/cancelled`,
     });

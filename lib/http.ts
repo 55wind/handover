@@ -23,4 +23,4 @@ export async function readJson(req: Request, max: number): Promise<unknown | nul
   }
 }
 
-export const gone = () => Response.json({ error: 'This purchase is no longer available.' }, { status: 404 });
+export const gone = () => Response.json({ error: 'This treat is no longer available.' }, { status: 404 });

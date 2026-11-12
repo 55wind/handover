@@ -4,14 +4,10 @@ import type { Backend, OrderView } from './types';
 
 /** Demo wallets for the development approval page. `id` is the fake payer id. */
 export const WALLETS: { id: string; name: string; country: string }[] = [
-  { id: 'FAKEPAYERVN01', name: 'Linh', country: 'VN' },
-  { id: 'FAKEPAYERDE01', name: 'Anna', country: 'DE' },
-  { id: 'FAKEPAYERBR01', name: 'Tomás', country: 'BR' },
-  { id: 'FAKEPAYERJP01', name: 'Aiko', country: 'JP' },
-  { id: 'FAKEPAYERUS01', name: 'Sam', country: 'US' },
-  { id: 'FAKEPAYERNO01', name: 'Ingrid', country: 'NO' },
-  { id: 'FAKEPAYERNP01', name: 'Sunita', country: 'NP' },
-  { id: 'FAKEPAYERNG01', name: 'Chidi', country: 'NG' },
+  { id: 'FAKEPAYERCA01', name: 'Ji-woo', country: 'CA' },
+  { id: 'FAKEPAYERDE01', name: 'Tunde', country: 'DE' },
+  { id: 'FAKEPAYERUS01', name: 'Sofía', country: 'US' },
+  { id: 'FAKEPAYERKR01', name: 'Min-jun', country: 'KR' },
 ];
 
 interface Order {
@@ -76,6 +72,9 @@ export function approve(orderId: string, walletId: string): string {
   return `${o.returnUrl}${o.returnUrl.includes('?') ? '&' : '?'}token=${orderId}&PayerID=${walletId}`;
 }
 
+/** Test hook: payouts made, in order. */
+export const payouts: { email: string; amount: string; reference: string }[] = [];
+
 /** Test hook: what was refunded for a capture. */
 const refunds = new Map<string, string>();
 export const refundedAmount = (captureId: string): string | undefined => refunds.get(captureId);
@@ -107,12 +106,14 @@ export const fakeBackend: Backend = {
     return { authorizationId: v.authorizationId!, status: v.authorizationStatus! };
   },
 
-  async captureAuthorization(authorizationId) {
+  async captureAuthorization(authorizationId, _requestId, amount) {
     trip('captureAuthorization');
     const v = holding('authorizationId', authorizationId);
     if (v.authorizationStatus === 'VOIDED') throw refused('A voided authorization cannot be captured or reauthorized.');
     if (v.authorizationStatus === 'CAPTURED') throw refused('Authorization has already been captured.');
-    Object.assign(v, { authorizationStatus: 'CAPTURED', captureId: rid(), captureStatus: 'COMPLETED' });
+    if (amount && Number(amount) > Number(v.amount)) throw refused('Capture amount exceeds the authorized amount.');
+    // A final capture of part of the hold releases the rest, as PayPal does.
+    Object.assign(v, { authorizationStatus: 'CAPTURED', captureId: rid(), captureStatus: 'COMPLETED', capturedAmount: amount ?? v.amount });
     trip('captureAuthorization', s.lose);
     return { captureId: v.captureId!, status: v.captureStatus! };
   },
@@ -133,5 +134,12 @@ export const fakeBackend: Backend = {
     v.captureStatus = amount && Number(amount) < Number(v.amount) ? 'PARTIALLY_REFUNDED' : 'REFUNDED';
     refunds.set(captureId, amount ?? v.amount ?? '');
     return { refundId: rid(), status: 'COMPLETED' };
+  },
+
+  async payout({ email, amount, reference }) {
+    trip('payout');
+    if (payouts.some((p) => p.reference === reference)) throw refused('Batch with given sender_batch_id already exists.');
+    payouts.push({ email, amount, reference });
+    return { payoutId: rid(), status: 'SUCCESS' };
   },
 };

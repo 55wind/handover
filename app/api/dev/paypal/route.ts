@@ -1,6 +1,5 @@
 import { WALLETS, approve, cancelUrlOf, fakeBackend } from '@/lib/paypal-fake';
-import { countries } from '@/lib/pricing';
-import { isFake } from '@/lib/seller';
+import { isFake } from '@/lib/shops';
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -52,11 +51,10 @@ export async function GET(req: Request) {
     // The only place this ever redirects to is the return URL the order itself stored.
     if (walletId) return new Response(null, { status: 302, headers: { location: approve(orderId, walletId) } });
     const order = await fakeBackend.getOrder(orderId);
-    const names = new Map(countries().map((c) => [c.code, c.name]));
     const href = (wallet: string) => esc(`/api/dev/paypal?order=${encodeURIComponent(orderId)}&wallet=${wallet}`);
-    return page(`<p>The shop asks to hold <strong>$${esc(order.amount ?? '')}</strong> for order <span class="id">${esc(orderId)}</span>. Choose the wallet that pays.</p>
+    return page(`<p>Have You Eaten? asks to hold <strong>$${esc(order.amount ?? '')}</strong> for order <span class="id">${esc(orderId)}</span>. Choose the wallet that pays.</p>
 <ul>
-${WALLETS.map((w) => `<li><a href="${href(w.id)}">Pay as ${esc(w.name)}, wallet registered in ${esc(names.get(w.country) ?? w.country)}</a></li>`).join('\n')}
+${WALLETS.map((w) => `<li><a href="${href(w.id)}">Approve as ${esc(w.name)} (${esc(w.country)})</a></li>`).join('\n')}
 </ul>
 <p><a href="${esc(cancelUrlOf(orderId) ?? '/')}">Cancel</a></p>
 <p class="muted">No money moves here. The wallets and their owners are made up.</p>`);

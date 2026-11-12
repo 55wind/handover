@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PayPalAgentToolkit } from '@paypal/agent-toolkit/openai';
 import { fakeBackend } from './paypal-fake';
-import { isFake } from './seller';
+import { isFake } from './shops';
 import type { Backend, OrderView } from './types';
 
 const BASE = 'https://api-m.sandbox.paypal.com'; // sandbox only: this project never calls live PayPal
@@ -59,6 +59,7 @@ function view(o: Json): OrderView {
     authorizationStatus: authorization?.status,
     captureId: capture?.id,
     captureStatus: capture?.status,
+    capturedAmount: capture?.amount?.value,
   };
 }
 
@@ -128,12 +129,12 @@ function realBackend(clientId: string, clientSecret: string): Backend {
   }
 
   return {
-    async createOrder({ amount, description, purchaseId, returnUrl, cancelUrl }) {
+    async createOrder({ amount, description, reference, returnUrl, cancelUrl }) {
       const o = await post(
         '/v2/checkout/orders',
         {
           intent: 'AUTHORIZE',
-          purchase_units: [{ amount: { currency_code: 'USD', value: amount }, description, custom_id: purchaseId }],
+          purchase_units: [{ amount: { currency_code: 'USD', value: amount }, description, custom_id: reference }],
           payment_source: {
             paypal: {
               experience_context: {
@@ -141,7 +142,7 @@ function realBackend(clientId: string, clientSecret: string): Backend {
                 cancel_url: cancelUrl,
                 user_action: 'PAY_NOW',
                 shipping_preference: 'NO_SHIPPING',
-                brand_name: 'Fair Hour',
+                brand_name: 'Have You Eaten?',
               },
             },
           },
@@ -172,8 +173,10 @@ function realBackend(clientId: string, clientSecret: string): Backend {
       return { authorizationId: authorization.id, status: authorization.status };
     },
 
-    async captureAuthorization(authorizationId, requestId) {
-      const c = await post(`/v2/payments/authorizations/${plain(authorizationId)}/capture`, { final_capture: true }, { 'PayPal-Request-Id': requestId });
+    async captureAuthorization(authorizationId, requestId, amount) {
+      // final_capture tells PayPal nothing more will be taken from this hold, so whatever is left of it is released.
+      const body = { final_capture: true, ...(amount ? { amount: { currency_code: 'USD', value: amount } } : {}) };
+      const c = await post(`/v2/payments/authorizations/${plain(authorizationId)}/capture`, body, { 'PayPal-Request-Id': requestId });
       if (!c.id) throw new Error(`PayPal answered the capture of ${authorizationId} without a capture id.`);
       return { captureId: c.id, status: String(c.status) };
     },
@@ -187,6 +190,17 @@ function realBackend(clientId: string, clientSecret: string): Backend {
       const r = await tool('create_refund', { capture_id: plain(captureId), ...(amount ? { amount: { currency_code: 'USD', value: amount } } : {}) }, requestId);
       if (!r.id) throw new Error(`PayPal answered the refund of ${captureId} without a refund id.`);
       return { refundId: r.id, status: String(r.status) };
+    },
+
+    async payout({ email, amount, note, reference }) {
+      // The reference doubles as the batch id, so a repeat of the same payout is refused by PayPal instead of paid twice.
+      const p = await post('/v1/payments/payouts', {
+        sender_batch_header: { sender_batch_id: reference, email_subject: 'A treat was served at your shop', email_message: note },
+        items: [{ recipient_type: 'EMAIL', receiver: email, amount: { currency: 'USD', value: amount }, note, sender_item_id: reference }],
+      });
+      const id = p.batch_header?.payout_batch_id;
+      if (!id) throw new Error('PayPal answered the payout without a batch id.');
+      return { payoutId: id, status: String(p.batch_header?.batch_status ?? 'PENDING') };
     },
   };
 }
