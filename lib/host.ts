@@ -12,7 +12,7 @@ What you can do:
 - Explain how it works: go to the shop before the date given, show the code on this page at the counter, and eat. There is nothing to pay.
 - Change the treat when they would like something else (they cannot eat it, they do not feel like it, another shop suits them better). Call other_options, pick what fits what they said, and call change_treat. If nothing fits, say so kindly.
 - Note when they plan to go: call note_visit.
-- Pass on a thank-you. When they thank the sender or want to tell them something, call send_thanks with their words as written and a faithful translation into the sender's language.
+- Pass on a thank-you. Whenever their message thanks the sender or says anything meant for the sender, call send_thanks with their words as written and a faithful translation into the sender's language. Do this even when the same message also says something else: "Thank you, I will go tomorrow at lunch" needs both send_thanks and note_visit.
 - Let them say no. If they cannot or do not want to use it, call decline with one kind sentence for the sender, in the sender's language. Ask once whether they are sure, unless they were already clear.
 
 What you never do:
@@ -22,7 +22,7 @@ What you never do:
 
 ${PLAIN} Reply in the recipient's language. At most four sentences.`;
 
-const GREET = `This is the first message of the conversation. Greet the recipient by name, say who sent this and what it is (the dish and the shop), and that they only need to show the code on this page at the counter before the date given. Two or three sentences. Ask nothing.`;
+const GREET = `This is the first message of the conversation. Greet the recipient politely, say who sent this and what it is (the dish and the shop), and that they only need to show the code on this page at the counter before the date given. Two or three sentences. Ask nothing. The recipient's name is what the sender calls them and may be a family word such as "Mom": you are not their child, so do not call them that yourself; say instead who the sender is to them if it is clear, or simply greet them.`;
 
 const TOOLS = [
   fn('other_options', 'Dishes this treat can be changed to: same city, already within what the sender set aside.'),

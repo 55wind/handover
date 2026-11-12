@@ -96,8 +96,11 @@ async function main() {
       if (c.maxUsd && Number(t.ceiling) > c.maxUsd) problems.push(`hold $${t.ceiling} is above the budget of $${c.maxUsd}`);
       if (t.to?.language.slice(0, 2) !== c.language) problems.push(`card language ${t.to?.language}, expected ${c.language}`);
       if (c.script && !c.script.test(t.card.forRecipient)) problems.push(`card is not written in the expected script: ${t.card.forRecipient}`);
-      const reply = t.errand.at(-1)?.text ?? '';
-      if (!reply.includes(t.price) || !reply.includes(t.ceiling)) problems.push('the reply does not state the price and the hold that code worked out');
+      // Some languages write 3,53 for 3.53: the amount is the same.
+      const reply = (t.errand.at(-1)?.text ?? '').replace(/([0-9]),([0-9][0-9])(?![0-9])/g, '$1.$2');
+      // "5" is as good as "5.00".
+      const states = (amount: string) => reply.includes(amount) || (amount.endsWith('.00') && new RegExp(`(^|[^0-9.,])${amount.slice(0, -3)}(?![0-9]|[.,][0-9])`).test(reply));
+      if (!states(t.price) || !states(t.ceiling)) problems.push(`the reply does not state the price $${t.price} and the hold $${t.ceiling} that code worked out: ${reply.slice(0, 300)}`);
     }
     check(`${c.say.slice(0, 74)}  ->  ${shop ? `${t.itemId} @ ${shop.id}, $${t.price} / hold $${t.ceiling}` : 'nothing'}`, problems);
   }

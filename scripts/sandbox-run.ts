@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs';
 
 if (existsSync('.env.local')) process.loadEnvFile('.env.local');
 delete process.env.PAYPAL_FAKE;
-const scriptedModel = process.env.SANDBOX_SCRIPTED === '1' || !process.env.LLM_MODEL;
+const scriptedModel = process.env.SANDBOX_SCRIPTED === '1' || !(process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY);
 if (scriptedModel) process.env.LLM_SCRIPTED = '1';
 
 async function main() {
@@ -17,7 +17,7 @@ async function main() {
   const { newTreat, startCheckout, placeHold, recipientView } = await import('../lib/treats');
   const { backend } = await import('../lib/paypal');
   const say = (s: string) => console.log(`${new Date().toISOString().slice(11, 19)}  ${s}`);
-  say(`model: ${scriptedModel ? 'scripted stand-in' : process.env.LLM_MODEL}   paypal: real sandbox`);
+  say(`model: ${(await import('../lib/agent')).modelName()}   paypal: real sandbox`);
 
   const t = newTreat({ name: 'Ji-woo', language: 'en' });
   assert(typeof t !== 'string', String(t));

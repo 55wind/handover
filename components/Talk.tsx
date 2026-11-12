@@ -33,7 +33,10 @@ export function Talk(p: {
   closed?: boolean; // nothing more can be said: only what was said is shown
 }) {
   const log = useRef<HTMLDivElement>(null);
-  const shown = p.messages.length + (p.sent ? 1 : 0);
+  // The live view can deliver the person's message before the request returns: then it is not shown a second time.
+  const sent = p.sent?.trim();
+  const pending = sent && !p.messages.slice(-2).some((m) => m.from === 'person' && m.text === sent) ? sent : '';
+  const shown = p.messages.length + (pending ? 1 : 0);
 
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
@@ -52,10 +55,10 @@ export function Talk(p: {
                 <p>{m.text}</p>
               </li>
             ))}
-            {p.sent && (
+            {pending && (
               <li className="is-pending">
                 <span>{p.words.person}</span>
-                <p>{p.sent}</p>
+                <p>{pending}</p>
               </li>
             )}
           </ol>
