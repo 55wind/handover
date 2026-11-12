@@ -1,45 +1,44 @@
 import type { Metadata } from 'next';
 import { Bodoni_Moda, IBM_Plex_Mono, Libre_Franklin } from 'next/font/google';
 import Link from 'next/link';
-import { isFake, isScripted } from '@/lib/seller';
+import { SiteNav } from '@/components/SiteNav';
+import { PLATFORM, isFake, isScripted } from '@/lib/shops';
 import './globals.css';
 
-// Bodoni over Franklin is the old print pairing for price lists and receipts. Plex Mono is kept for PayPal ids alone.
-const display = Bodoni_Moda({ subsets: ['latin'], axes: ['opsz'], variable: '--font-bodoni', display: 'swap' });
-const body = Libre_Franklin({ subsets: ['latin'], variable: '--font-franklin', display: 'swap' });
+// Bodoni over Franklin is the old print pairing for menus and cards. Plex Mono is kept for codes and PayPal ids alone.
+const display = Bodoni_Moda({ subsets: ['latin', 'latin-ext'], axes: ['opsz'], variable: '--font-bodoni', display: 'swap' });
+const body = Libre_Franklin({ subsets: ['latin', 'latin-ext'], variable: '--font-franklin', display: 'swap' });
 const mono = IBM_Plex_Mono({ subsets: ['latin'], weight: '400', variable: '--font-plex-mono', display: 'swap' });
 
 export const metadata: Metadata = {
-  title: 'Fair Hour',
-  description: 'Priced in hours, not dollars. Proven by the wallet, not the IP address. A demo on the PayPal sandbox.',
+  title: PLATFORM.name,
+  description: 'Tell an agent who you miss. It buys them a meal at the shop next door, and you pay only when they eat. A demo on the PayPal sandbox.',
 };
 
 // The development banner depends on the server's environment at request time, never on what was true at build.
 export const dynamic = 'force-dynamic';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const standIns = [isFake() && 'fake PayPal', isScripted() && 'scripted model'].filter(Boolean);
+  const standIns = [isFake() && 'no PayPal', isScripted() && 'scripted model'].filter(Boolean);
   return (
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
       <body>
-        {standIns.length > 0 && (
-          <p className="dev-banner">DEVELOPMENT MODE: {standIns.join(' and ')}. Nothing here is real.</p>
-        )}
+        {standIns.length > 0 && <p className="dev-banner">Development stand-ins: {standIns.join(', ')}. Nothing here is real.</p>}
         <a className="skip" href="#main">
           Skip to content
         </a>
         <header className="site-head">
           <div className="container">
-            <Link className="wordmark" href="/" aria-label="Fair Hour, home">
-              Fair Hour
+            <Link className="wordmark" href="/" aria-label={`${PLATFORM.name} Home`}>
+              {PLATFORM.name}
             </Link>
-            <span className="site-head__marker">PayPal sandbox demo</span>
+            <SiteNav />
           </div>
         </header>
         <main id="main">{children}</main>
         <footer className="site-foot">
           <div className="container">
-            Runs on the PayPal sandbox. The seller and buyers shown here are fictional. No real money moves.
+            <p>Runs on the PayPal sandbox. No real money moves. The shops and the people shown here are fictional.</p>
           </div>
         </footer>
       </body>
