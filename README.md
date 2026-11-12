@@ -61,6 +61,7 @@ The figures below use the numbers of the end-to-end check: abalone porridge at $
 ### One treat, start to finish
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 520}}}%%
 flowchart TD
     S1(["1 - Sender: My mom in Busan has a cold. Get her something warm tonight."])
     E1["2 - Errand agent looks up shops near her, picks a dish, writes the card in Korean"]
@@ -82,6 +83,7 @@ Rounded boxes are people, plain boxes are agents (a language model with tools), 
 ### Where the money is
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 520}}}%%
 flowchart TD
     A["Sender's PayPal account"]
     B(("Held by PayPal, not taken"))
@@ -122,6 +124,7 @@ stateDiagram-v2
 ### The recipient changes the treat
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 520}}}%%
 flowchart TD
     R1(["Recipient writes in her own language: I can't eat seafood."])
     H1["Host agent asks code what else is possible"]
@@ -141,6 +144,7 @@ The host agent is never given a price, so it cannot reveal one.
 ### At the counter: the model proposes, code decides, PayPal confirms
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 520}}}%%
 flowchart TD
     A["The shopkeeper enters the code"] --> B{"Code checks: a live treat, for this shop, in time?"}
     B -- "no" --> B1["Refused with the reason. Nothing changes."]
@@ -162,6 +166,7 @@ flowchart TD
 ### When the meal is not eaten
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 520}}}%%
 flowchart TD
     H["The treat is held: PayPal holds the money"] --> Q{"What happens?"}
     Q -- "the recipient tells the host no" --> D["Host agent calls decline, with one kind sentence for the sender"]
@@ -177,6 +182,7 @@ flowchart TD
 ### An AI assistant sends the treat (MCP)
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 520}}}%%
 flowchart TD
     U1(["User tells their AI assistant: Dad's birthday is on Friday. Send him a cake."])
     A1["The assistant calls find_treats for Kraków on the MCP treat desk"]
