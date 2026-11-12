@@ -82,11 +82,7 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 
 
 .scroller { overflow-x: auto; border: 1px solid var(--color-rule-2); border-radius: var(--radius-card); }
 /* CANVAS SIZE: set width/height here AND on svg.edges AND its viewBox — keep the three in sync */
-.canvas { position: relative; width: 760px; height: 770px; background: var(--color-paper);
-  background-image:
-    linear-gradient(var(--color-rule) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-rule) 1px, transparent 1px);
-  background-size: 24px 24px; background-position: -1px -1px; }
+.canvas { position: relative; width: 760px; height: 770px; background: var(--color-paper); }
 
 .group { position:absolute; border-radius: var(--radius-tile); }
 /* group labels are names like node names (display font), written in the brand's own case.
