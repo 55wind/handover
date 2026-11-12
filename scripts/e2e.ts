@@ -95,7 +95,7 @@ async function main() {
   assert.equal(paid.capturedAmount, mom.price, 'PayPal took the price of the dish, not the hold');
   assert.equal(paid.authorizationStatus, 'CAPTURED');
   assert.equal(mom.outcome!.released, (Number(mom.ceiling) - Number(mom.price)).toFixed(2));
-  assert.deepEqual(fake.payouts.at(-1), { email: 'shops@example.test', amount: mom.price, reference: `treat-${mom.ref}` });
+  assert.deepEqual(fake.payouts.at(-1), { email: (await import('../lib/shops')).shopPayoutEmail(), amount: mom.price, reference: `treat-${mom.ref}` });
   assert.match(String(await redeem(mom.shopId!, mom.code, llm)), /already been served/);
   assert.equal(fake.payouts.filter((p) => p.reference === `treat-${mom.ref}`).length, 1, 'the shop is paid once');
   line('served at the counter', `took $${mom.outcome!.charged}, released $${mom.outcome!.released}, shop paid $${fake.payouts.at(-1)!.amount}`);
