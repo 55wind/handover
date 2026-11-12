@@ -54,6 +54,163 @@ The blue path is one treat, in the order of the numbers. The source of the pictu
 
 Everything runs in one Node process. The model is never given PayPal credentials. It can only ask for the tools listed below, and the code behind each tool applies the rules before PayPal is called.
 
+## Scenarios and flows
+
+The figures below use the numbers of the end-to-end check: abalone porridge at $10.48, a hold of $14.00, changed to vegetable porridge at $6.74.
+
+### One treat, start to finish
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor S as Sender
+    participant E as Errand agent
+    participant C as Rules in code
+    participant P as PayPal sandbox
+    actor R as Recipient
+    participant H as Host agent
+    actor K as Shopkeeper
+    participant T as Till agent
+
+    S->>E: "My mom in Busan has a cold. Get her something warm tonight."
+    E->>C: find_shops, then propose_treat
+    C-->>E: price $10.48, hold $14.00
+    E-->>S: the dish, the shop, the card in Korean
+    S->>P: approves the hold (order with intent AUTHORIZE)
+    C->>P: is the order approved? then authorize
+    P-->>C: $14.00 held, nothing taken
+    S-->>R: passes on the link, which shows no price
+    R->>H: "I can't eat seafood."
+    H->>C: other_options, then change_treat
+    C-->>H: vegetable porridge, within what is held
+    R->>K: shows the code
+    K->>T: enters the code
+    T->>C: take_payment
+    C->>P: final capture of $6.74
+    P-->>C: captured, the other $7.26 released
+    T->>C: pay_shop
+    C->>P: payout of $6.74 to the shop
+    C->>P: reads the order back
+    C-->>S: "Mom is having the vegetable porridge", confirmed with PayPal
+```
+
+### Where the money is
+
+```mermaid
+flowchart LR
+    A["Sender's PayPal account"]
+    B(("Held by PayPal, not taken"))
+    C["Platform's PayPal account"]
+    D["Shop's PayPal account"]
+    A -- "approves a hold of $14.00" --> B
+    B -- "she eats: $6.74 captured" --> C
+    C -- "payout of $6.74" --> D
+    B -. "the other $7.26 released" .-> A
+    B -. "declined, cancelled or not used in three days: all $14.00 released" .-> A
+```
+
+### The life of a treat
+
+```mermaid
+stateDiagram-v2
+    [*] --> draft: the sender starts talking to the errand agent
+    draft --> draft: the agent proposes or changes the treat
+    draft --> approving: the sender presses Hold and an order is created
+    approving --> held: PayPal reports the approval and the hold is placed
+    approving --> released: stopped before approval, nothing was held
+    held --> held: the recipient changes the dish within the hold
+    held --> settling: the code is shown at the right shop
+    settling --> enjoyed: the price is captured, the rest released, the shop paid
+    settling --> held: the payment was not taken, the treat stays good
+    held --> released: the recipient says no, the sender cancels, or three days pass
+    enjoyed --> [*]
+    released --> [*]
+```
+
+| State | What PayPal holds | What has been taken |
+|---|---|---|
+| `draft`, `approving` | nothing | nothing |
+| `held`, `settling` | the hold, for example $14.00 | nothing |
+| `enjoyed` | nothing | the price of the dish, for example $6.74 |
+| `released` | nothing | nothing |
+
+### The recipient changes the treat
+
+```mermaid
+sequenceDiagram
+    actor R as Recipient
+    participant H as Host agent
+    participant C as Rules in code
+
+    R->>H: "해산물은 못 먹어요." (I can't eat seafood.)
+    H->>C: other_options
+    C-->>H: dishes in the same city that fit the hold, with no prices
+    H->>C: change_treat to vegetable porridge
+    C->>C: same city? within $14.00? still held and in time?
+    C-->>H: changed
+    H-->>R: answers in Korean, and the same code still works
+    Note over H: The host is never given a price, so it cannot reveal one.
+```
+
+### At the counter: the model proposes, code decides, PayPal confirms
+
+```mermaid
+flowchart TD
+    A["The shopkeeper enters the code"] --> B{"Code checks: a live treat, for this shop, in time?"}
+    B -- "no" --> B1["Refused with the reason. Nothing changes."]
+    B -- "yes" --> C{"Is a model available?"}
+    C -- "yes" --> D["Till agent calls read_order, take_payment, pay_shop, finish"]
+    C -- "no: it failed, or the day's allowance is spent" --> E["The same steps, driven by code"]
+    D --> F{"Do the rules in code allow the step?"}
+    E --> F
+    F -- "no" --> G["The step is refused. Nothing is taken."]
+    F -- "yes" --> H["PayPal: final capture of the price, then a payout to the shop"]
+    G --> I["Closing check: code reads the order back from PayPal"]
+    H --> I
+    I --> J{"What does PayPal show?"}
+    J -- "a capture" --> K["Enjoyed. The agent's words are shown only if they agree with this."]
+    J -- "no capture, and the hold is still open" --> L["Held again. The treat stays good and the counter can try again."]
+    J -- "no capture and no hold" --> M["Released. Nothing was taken."]
+```
+
+### When the meal is not eaten
+
+```mermaid
+flowchart TD
+    H["The treat is held: PayPal holds the money"] --> Q{"What happens?"}
+    Q -- "the recipient tells the host no" --> D["Host agent calls decline, with one kind sentence for the sender"]
+    Q -- "the sender presses Cancel" --> X["Cancel"]
+    Q -- "three days pass" --> E["Noticed the next time anyone opens the treat, the ledger or the counter"]
+    D --> V["Code voids the authorization at PayPal"]
+    X --> V
+    E --> V
+    V --> R["Code reads the order back: no capture, no open hold"]
+    R --> Z["Released. Nothing was taken, and the sender is told."]
+```
+
+### An AI assistant sends the treat (MCP)
+
+```mermaid
+sequenceDiagram
+    actor U as User
+    participant A as The user's AI assistant
+    participant M as MCP treat desk
+    participant P as PayPal sandbox
+    actor R as Recipient
+
+    U->>A: "Dad's birthday is on Friday. Send him a cake."
+    A->>M: find_treats for Kraków
+    M-->>A: shops, menus and prices
+    A->>M: send_treat with a slice of cheesecake and a card in Polish
+    M-->>A: approve_url
+    A-->>U: "Open this link to approve the hold."
+    U->>P: approves, and nothing is taken
+    A->>M: treat_status
+    M-->>A: held, with the link for the recipient
+    A-->>R: passes the link on
+    Note over M,P: From here it is the same treat: the counter, the capture, the payout.
+```
+
 ## Try it
 
 **TODO** before submitting: put the hosted address here and check the button labels below against the deployed build.
