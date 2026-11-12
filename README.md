@@ -61,52 +61,37 @@ The figures below use the numbers of the end-to-end check: abalone porridge at $
 ### One treat, start to finish
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor S as Sender
-    participant E as Errand agent
-    participant C as Rules in code
-    participant P as PayPal sandbox
-    actor R as Recipient
-    participant H as Host agent
-    actor K as Shopkeeper
-    participant T as Till agent
-
-    S->>E: "My mom in Busan has a cold. Get her something warm tonight."
-    E->>C: find_shops, then propose_treat
-    C-->>E: price $10.48, hold $14.00
-    E-->>S: the dish, the shop, the card in Korean
-    S->>P: approves the hold (order with intent AUTHORIZE)
-    C->>P: is the order approved? then authorize
-    P-->>C: $14.00 held, nothing taken
-    S-->>R: passes on the link, which shows no price
-    R->>H: "I can't eat seafood."
-    H->>C: other_options, then change_treat
-    C-->>H: vegetable porridge, within what is held
-    R->>K: shows the code
-    K->>T: enters the code
-    T->>C: take_payment
-    C->>P: final capture of $6.74
-    P-->>C: captured, the other $7.26 released
-    T->>C: pay_shop
-    C->>P: payout of $6.74 to the shop
-    C->>P: reads the order back
-    C-->>S: "Mom is having the vegetable porridge", confirmed with PayPal
+flowchart TD
+    S1(["1 - Sender: My mom in Busan has a cold. Get her something warm tonight."])
+    E1["2 - Errand agent looks up shops near her, picks a dish, writes the card in Korean"]
+    C1[["3 - Code works out the price, $10.48, and the hold, $14.00"]]
+    P1[("4 - PayPal: the sender approves, $14.00 is held, nothing is taken")]
+    R1(["5 - Recipient opens the link: the card, the dish, a code. No price."])
+    H1["6 - Host agent talks to her in Korean and changes the dish within the hold"]
+    K1(["7 - At the shop she shows the code and the shopkeeper enters it"])
+    T1["8 - Till agent asks to take the payment and to pay the shop"]
+    C2[["9 - Code checks the shop, the time and the hold"]]
+    P2[("10 - PayPal: $6.74 captured, the other $7.26 released, $6.74 paid out to the shop")]
+    C3[["11 - Code reads the order back from PayPal"]]
+    S2(["12 - Sender sees: Mom is having the vegetable porridge. Confirmed with PayPal."])
+    S1 --> E1 --> C1 --> P1 --> R1 --> H1 --> K1 --> T1 --> C2 --> P2 --> C3 --> S2
 ```
+
+Rounded boxes are people, plain boxes are agents (a language model with tools), double-edged boxes are code, and cylinders are PayPal.
 
 ### Where the money is
 
 ```mermaid
-flowchart LR
+flowchart TD
     A["Sender's PayPal account"]
     B(("Held by PayPal, not taken"))
     C["Platform's PayPal account"]
     D["Shop's PayPal account"]
-    A -- "approves a hold of $14.00" --> B
-    B -- "she eats: $6.74 captured" --> C
+    A -- "the sender approves a hold of $14.00" --> B
+    B -- "she eats: $6.74 is captured" --> C
     C -- "payout of $6.74" --> D
-    B -. "the other $7.26 released" .-> A
-    B -. "declined, cancelled or not used in three days: all $14.00 released" .-> A
+    B -. "the other $7.26 is released" .-> A
+    B -. "declined, cancelled or not used in three days: all $14.00 is released" .-> A
 ```
 
 ### The life of a treat
@@ -137,20 +122,21 @@ stateDiagram-v2
 ### The recipient changes the treat
 
 ```mermaid
-sequenceDiagram
-    actor R as Recipient
-    participant H as Host agent
-    participant C as Rules in code
-
-    R->>H: "해산물은 못 먹어요." (I can't eat seafood.)
-    H->>C: other_options
-    C-->>H: dishes in the same city that fit the hold, with no prices
-    H->>C: change_treat to vegetable porridge
-    C->>C: same city? within $14.00? still held and in time?
-    C-->>H: changed
-    H-->>R: answers in Korean, and the same code still works
-    Note over H: The host is never given a price, so it cannot reveal one.
+flowchart TD
+    R1(["Recipient writes in her own language: I can't eat seafood."])
+    H1["Host agent asks code what else is possible"]
+    C1[["Code lists dishes in the same city that fit the hold. It gives no prices."]]
+    H2["Host agent picks vegetable porridge and asks code to change the treat"]
+    C2{"Code checks: same city? within $14.00? still held and in time?"}
+    X["Refused. The treat stays as it was."]
+    OK[["Changed. The price is now $6.74 of the $14.00 held."]]
+    H3["Host agent answers in Korean. The same code still works."]
+    R1 --> H1 --> C1 --> H2 --> C2
+    C2 -- "no" --> X
+    C2 -- "yes" --> OK --> H3
 ```
+
+The host agent is never given a price, so it cannot reveal one.
 
 ### At the counter: the model proposes, code decides, PayPal confirms
 
@@ -191,24 +177,17 @@ flowchart TD
 ### An AI assistant sends the treat (MCP)
 
 ```mermaid
-sequenceDiagram
-    actor U as User
-    participant A as The user's AI assistant
-    participant M as MCP treat desk
-    participant P as PayPal sandbox
-    actor R as Recipient
-
-    U->>A: "Dad's birthday is on Friday. Send him a cake."
-    A->>M: find_treats for Kraków
-    M-->>A: shops, menus and prices
-    A->>M: send_treat with a slice of cheesecake and a card in Polish
-    M-->>A: approve_url
-    A-->>U: "Open this link to approve the hold."
-    U->>P: approves, and nothing is taken
-    A->>M: treat_status
-    M-->>A: held, with the link for the recipient
-    A-->>R: passes the link on
-    Note over M,P: From here it is the same treat: the counter, the capture, the payout.
+flowchart TD
+    U1(["User tells their AI assistant: Dad's birthday is on Friday. Send him a cake."])
+    A1["The assistant calls find_treats for Kraków on the MCP treat desk"]
+    M1[["The desk answers with shops, menus and prices"]]
+    A2["The assistant calls send_treat: a slice of cheesecake and a card in Polish"]
+    M2[["The desk creates the order and answers with a PayPal link"]]
+    U2(["The user opens the link and approves the hold. Nothing is taken."])
+    A3["The assistant calls treat_status"]
+    M3[["The desk asks PayPal, places the hold and answers with the link for the recipient"]]
+    R1(["The assistant passes the link to Dad. From here it is the same treat: the counter, the capture, the payout."])
+    U1 --> A1 --> M1 --> A2 --> M2 --> U2 --> A3 --> M3 --> R1
 ```
 
 ## Try it
