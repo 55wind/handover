@@ -63,8 +63,8 @@ const COLUMNS: ColDef<LedgerRow>[] = [
   { headerName: 'Held', field: 'held', ...money },
   { headerName: 'Charged', field: 'charged', ...money },
   { headerName: 'Released', field: 'released', ...money },
-  { headerName: 'Sent by', field: 'viaAgent', width: 144, valueFormatter: (p) => (p.value ? 'An AI assistant' : 'A person') },
-  { headerName: 'Confirmed with PayPal', field: 'verified', width: 184, valueFormatter: (p) => (p.value ? 'Yes' : 'Not yet') },
+  { headerName: 'Sent by', colId: 'sentBy', width: 144, valueGetter: (p) => (p.data?.viaAgent ? 'An AI assistant' : 'A person') },
+  { headerName: 'Confirmed with PayPal', colId: 'confirmed', width: 184, valueGetter: (p) => (p.data?.verified ? 'Yes' : 'Not yet') },
   { headerName: 'PayPal ids', flex: 1, minWidth: 264, cellRenderer: IdsCell, ...wrap },
 ];
 // The ledger grows with its rows up to about eight of them, then scrolls inside itself. Rows are not links, so they
