@@ -148,6 +148,8 @@ export interface Backend {
   refundCapture(captureId: string, requestId: string, amount?: string): Promise<{ refundId: string; status: string }>;
   /** Sends money from the platform's balance to a shop's PayPal account. */
   payout(o: { email: string; amount: string; note: string; reference: string }): Promise<{ payoutId: string; status: string }>;
+  /** Where a payout stands: PENDING, PROCESSING, SUCCESS, DENIED, CANCELED. */
+  payoutStatus(payoutId: string): Promise<string>;
 }
 
 export type ToolResult = { ok: true; data: unknown } | { ok: false; refused: boolean; error: string };

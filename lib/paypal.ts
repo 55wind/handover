@@ -95,9 +95,9 @@ function realBackend(clientId: string, clientSecret: string): Backend {
     return token;
   }
 
-  async function post(path: string, body?: unknown, headers: Record<string, string> = {}): Promise<Json> {
+  async function post(path: string, body?: unknown, headers: Record<string, string> = {}, method = 'POST'): Promise<Json> {
     const r = await call(BASE + path, {
-      method: 'POST',
+      method,
       headers: { Authorization: `Bearer ${await auth()}`, 'Content-Type': 'application/json', ...headers },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -201,6 +201,11 @@ function realBackend(clientId: string, clientSecret: string): Backend {
       const id = p.batch_header?.payout_batch_id;
       if (!id) throw new Error('PayPal answered the payout without a batch id.');
       return { payoutId: id, status: String(p.batch_header?.batch_status ?? 'PENDING') };
+    },
+
+    async payoutStatus(payoutId) {
+      const p = await post(`/v1/payments/payouts/${plain(payoutId)}`, undefined, {}, 'GET');
+      return String(p.batch_header?.batch_status ?? 'PENDING');
     },
   };
 }

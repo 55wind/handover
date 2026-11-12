@@ -225,19 +225,35 @@ export async function redeem(shopId: string, code: unknown, llm: Llm | null = de
 }
 
 const rechecked = new Map<string, number>();
-/** Asks PayPal again about a served treat whose payment was not confirmed yet. At most once a minute, for a day. */
+const SETTLED = ['SUCCESS', 'DENIED', 'CANCELED', 'OWED'];
+/**
+ * Asks PayPal again about a served treat whose payment was not confirmed yet, or whose payout to the shop was still
+ * on its way. Called when someone looks at the treat or the ledger; at most once a minute, for a few days.
+ */
 export async function recheck(t: Treat, minGapMs = 60_000): Promise<void> {
-  if (t.status !== 'enjoyed' || !t.outcome || t.outcome.verified || t.running || !t.paypal.orderId) return;
+  if (t.status !== 'enjoyed' || !t.outcome || t.running || !t.paypal.orderId) return;
+  const unconfirmed = !t.outcome.verified;
+  const payoutOpen = !!t.paypal.payoutId && !SETTLED.includes(t.paypal.payoutStatus ?? '');
+  if (!unconfirmed && !payoutOpen) return;
   const now = Date.now();
   if (now - Date.parse(t.createdAt) > 4 * 24 * 3600_000 || now - (rechecked.get(t.id) ?? 0) < minGapMs) return;
   rechecked.set(t.id, now);
   try {
-    const order = await backend().getOrder(t.paypal.orderId);
-    if (order.captureStatus === 'COMPLETED' && !openHold(order)) {
-      t.outcome.verified = true;
-      if (order.capturedAmount) t.outcome.charged = order.capturedAmount;
-      rechecked.delete(t.id);
-      store.emit(t.id, { actor: 'system', type: 'outcome', summary: `Confirmed with PayPal: $${t.outcome.charged} taken.` });
+    const pp = backend();
+    if (unconfirmed) {
+      const order = await pp.getOrder(t.paypal.orderId);
+      if (order.captureStatus === 'COMPLETED' && !openHold(order)) {
+        t.outcome.verified = true;
+        if (order.capturedAmount) t.outcome.charged = order.capturedAmount;
+        store.emit(t.id, { actor: 'system', type: 'outcome', summary: `Confirmed with PayPal: $${t.outcome.charged} taken.` });
+      }
+    }
+    if (payoutOpen) {
+      const status = await pp.payoutStatus(t.paypal.payoutId!);
+      if (status !== t.paypal.payoutStatus) {
+        t.paypal.payoutStatus = status;
+        store.emit(t.id, { actor: 'desk', type: 'tool', summary: `PayPal reports the payout to the shop as ${status.toLowerCase()}.` });
+      }
     }
   } catch {
     /* asked again the next time someone looks */

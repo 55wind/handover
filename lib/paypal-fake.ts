@@ -142,4 +142,9 @@ export const fakeBackend: Backend = {
     payouts.push({ email, amount, reference });
     return { payoutId: rid(), status: 'SUCCESS' };
   },
+
+  async payoutStatus() {
+    trip('payoutStatus');
+    return 'SUCCESS';
+  },
 };
