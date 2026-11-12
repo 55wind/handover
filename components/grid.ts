@@ -2,26 +2,30 @@ import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-communi
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-/** Quartz, redrawn in the page's own paper, ink and hairlines. Colours and faces come from the tokens in app/globals.css. */
+/**
+ * Quartz, redrawn as one of the product's own surfaces: white, a hairline around it, the surface radius, a tinted
+ * head with muted labels and a tinted row under the pointer. Every colour, the faces and the radius are the role
+ * tokens in app/globals.css, so the grid follows the page when they change.
+ */
 export const gridTheme = themeQuartz.withParams({
-  backgroundColor: 'var(--color-paper)',
-  foregroundColor: 'var(--color-ink)',
-  accentColor: 'var(--color-accent)',
-  borderColor: 'var(--color-rule)',
-  chromeBackgroundColor: 'var(--color-paper)',
-  headerBackgroundColor: 'var(--color-paper)',
-  headerTextColor: 'var(--color-muted)',
+  backgroundColor: 'var(--color-surface)',
+  foregroundColor: 'var(--color-text)',
+  accentColor: 'var(--color-action)',
+  borderColor: 'var(--color-border)',
+  chromeBackgroundColor: 'var(--color-surface)',
+  headerBackgroundColor: 'var(--color-bg-subtle)',
+  headerTextColor: 'var(--color-text-muted)',
   headerFontWeight: 500,
   headerFontSize: 14,
-  headerRowBorder: { color: 'var(--color-rule-2)' },
+  headerRowBorder: { color: 'var(--color-border)' },
   headerColumnBorder: false,
   fontFamily: 'var(--font-body)',
   fontSize: 15,
-  rowHoverColor: 'var(--color-paper-2)',
+  rowHoverColor: 'var(--color-bg-subtle)',
   columnBorder: false,
-  wrapperBorder: false,
-  wrapperBorderRadius: 0,
-  borderRadius: 0,
+  wrapperBorder: { color: 'var(--color-border)' },
+  wrapperBorderRadius: 'var(--radius-surface)',
+  borderRadius: 'var(--radius-inset)',
   cellHorizontalPadding: 12,
 });
 

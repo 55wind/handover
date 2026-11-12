@@ -302,7 +302,9 @@ export default function TreatPage({ params, searchParams }: { params: Promise<{ 
               </div>
               <div>
                 <dt>PayPal</dt>
-                <dd className={o?.verified ? 'verified' : 'muted'}>{o?.verified ? 'Confirmed with PayPal' : 'Not confirmed with PayPal'}</dd>
+                <dd>
+                  <span className={`pill${o?.verified ? ' pill--success' : ''}`}>{o?.verified ? 'Confirmed with PayPal' : 'Not confirmed with PayPal'}</span>
+                </dd>
               </div>
             </dl>
           </section>

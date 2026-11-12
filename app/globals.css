@@ -1,13 +1,12 @@
-/* Hallmark · shape: Long Document around an index of shops · genre: editorial · theme: Specimen (kept from the earlier build on this branch) · job: try · draw: manual
- * hero: Stage, with type as the visual · nav: edge-aligned, a wordmark and two links · footer: colophon · imagery: none · signature: "have you eaten?" set in the languages of the five cities that take part
- * axes: light/high-contrast-serif/cool · posture: restrained · contrast: pass (worked out from the tokens) · fold: worked out from the sizes, not rendered · v2.0.0 */
-/* Hallmark · pre-emit critique: P4 H4 E4 S5 R4 V3 · weakest: V, the theme and the row of steps are carried over from the earlier build; the hero, the comparison and the shop index were made new around this product's own words */
-/* Hallmark · dismissed 58 · the hero sentence is the entry's own one-line pitch from the brief, kept word for word */
-/* Hallmark · dismissed 49 · "Open the recipient's page" is the label the brief gives that demo link; the button wraps at phone width */
-/* Hallmark · dismissed 70 · "Confirmed with PayPal" at the counter appears only when the redeem call answers with verified set */
-/* Hallmark · answered F1 · the two straight quotes found in the ledger are a JSX attribute, not prose */
-/* Oat paper, warm near-black ink, one ink-blue signal, Fraunces over Libre Franklin, IBM Plex Mono on codes and PayPal
- * ids only, square corners, hairlines, no imagery. The accent draws link underlines, the focus ring and selected text, nothing else. */
+/* Have You Eaten?: the look of a payments product with a warm heart.
+ * White pages, slate text, one blue for every action and link, one cooked orange used only as a small mark for the
+ * food and the care, and a deep navy for the footer. A raised surface is white with a hairline, a 12px radius and a
+ * short shadow; an inset surface is a pale slate tint. A state is a small pill: green once PayPal has confirmed,
+ * blue while money is held, slate once it is released. Fraunces sets the headings, Libre Franklin everything that
+ * is read or pressed, IBM Plex Mono codes and PayPal ids only. No imagery, no gradients.
+ * Colours come in two tiers. Primitives are named by hue and never appear in a rule; role tokens point at them and
+ * are the only colours a rule uses. Every text pair below was measured against WCAG AA (4.5:1 for text, 3:1 for
+ * large numerals, marks, control borders and the focus ring). */
 
 :root {
   color-scheme: light;
@@ -22,13 +21,39 @@
   --measure: 46rem;
   --z-sticky-nav: 300; --z-toast: 500;
   --control: 2.75rem;
-  --color-paper: oklch(96.5% 0.016 82); --color-paper-2: oklch(93.5% 0.02 80); --color-paper-3: oklch(89% 0.024 78);
-  --color-ink: oklch(17% 0.012 60); --color-ink-2: oklch(28% 0.014 60); --color-muted: oklch(41% 0.014 65);
-  --color-rule: oklch(80% 0.018 75); --color-rule-2: oklch(66% 0.02 72);
-  --color-accent: oklch(45% 0.18 262); --color-accent-ink: oklch(97% 0.012 82); --color-focus: oklch(50% 0.18 262);
-  --color-guide: oklch(55% 0.16 262 / 0.5);
-  --color-error: oklch(47% 0.18 27);
-  --color-alarm: oklch(50% 0.21 27); --color-alarm-ink: oklch(98% 0.012 82);
+  /* One radius per kind of thing: a mark inside a surface, a control, a surface, a pill. */
+  --radius-inset: 8px; --radius-control: 10px; --radius-surface: 12px; --radius-pill: 999px;
+
+  /* Primitives: only the steps a role below uses. */
+  --white: #FFFFFF;
+  --slate-50: #F5F7FA; --slate-100: #EEF2F6; --slate-200: #E3E8EF; --slate-300: #CBD5E1; --slate-500: #7B899E; --slate-600: #5B6778; --slate-700: #334155; --slate-900: #0F172A;
+  --blue-50: #EBF2FE; --blue-300: #8FB8FF; --blue-600: #1456D8; --blue-700: #0F44AD;
+  --orange-600: #E8590C;
+  --green-50: #E7F6EF; --green-700: #0B7A53;
+  --red-50: #FDECEA; --red-600: #C8281E;
+  --navy-200: #B8C4D6; --navy-900: #0B1F3F;
+
+  /* Surfaces */
+  --color-bg: var(--white); /* the page */
+  --color-bg-subtle: var(--slate-50); /* a tinted band, an inset block, a hovered row */
+  --color-bg-neutral: var(--slate-100); /* a neutral pill, a disabled button */
+  --color-surface: var(--white); /* a raised card, an input */
+  /* Text: 17.85, 10.35 and 5.74 to 1 on the page; the muted step is 5.35 on the tinted band and 5.11 on the neutral tint. */
+  --color-text: var(--slate-900); --color-text-secondary: var(--slate-700); --color-text-muted: var(--slate-600);
+  /* Lines: a hairline, a stronger rule, and the edge of a field (3.55 to 1 on white, so the field can be found). */
+  --color-border: var(--slate-200); --color-border-strong: var(--slate-300); --color-border-control: var(--slate-500);
+  /* The one action colour: 6.26 to 1 as a link on the page and under a white label, 8.57 when pressed. */
+  --color-action: var(--blue-600); --color-action-hover: var(--blue-700); --color-on-action: var(--white); --color-action-subtle: var(--blue-50);
+  --color-focus: var(--blue-600);
+  /* The warm mark: 3.58 to 1 on white and 3.34 on the tint. Enough for a large numeral or a rule, never for body text. */
+  --color-warm: var(--orange-600);
+  /* States: green 4.80 to 1 on its tint, red 4.86 on its tint and 5.56 under white. */
+  --color-success: var(--green-700); --color-success-subtle: var(--green-50);
+  --color-danger: var(--red-600); --color-danger-subtle: var(--red-50); --color-on-danger: var(--white);
+  /* The dark band: white 16.38 to 1, its quiet text 9.29, a link 8.17. */
+  --color-inverse: var(--navy-900); --color-on-inverse: var(--white); --color-on-inverse-muted: var(--navy-200); --color-action-on-inverse: var(--blue-300);
+  --shadow-raised: 0 1px 2px rgb(16 24 40 / 0.06), 0 4px 16px rgb(16 24 40 / 0.05);
+
   /* Fraunces has no Hangul. Korean names fall to a clean gothic face, which stays readable at every size. */
   --font-display: var(--font-serif), Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", ui-serif, Georgia, serif;
   --weight-display: 560;
@@ -42,13 +67,13 @@
 /* Base */
 *, *::before, *::after { box-sizing: border-box; }
 html, body { overflow-x: clip; }
-html { scrollbar-color: var(--color-muted) var(--color-paper); scroll-padding-top: var(--space-3xl); }
-body { margin: 0; min-height: 100dvh; display: flex; flex-direction: column; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-body); font-size: var(--text-body); line-height: 1.55; -webkit-font-smoothing: antialiased; caret-color: var(--color-accent); }
+html { scrollbar-color: var(--color-border-strong) var(--color-bg); scroll-padding-top: var(--space-3xl); }
+body { margin: 0; min-height: 100dvh; display: flex; flex-direction: column; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); font-size: var(--text-body); line-height: 1.55; -webkit-font-smoothing: antialiased; caret-color: var(--color-action); }
 main { flex: 1; }
-::selection { background: var(--color-accent); color: var(--color-accent-ink); }
+::selection { background: var(--color-action); color: var(--color-on-action); }
 :focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
-a { color: inherit; text-decoration-line: underline; text-decoration-thickness: 1px; text-decoration-color: var(--color-accent); text-underline-offset: 0.18em; }
-a:hover { text-decoration-thickness: 2px; }
+a { color: var(--color-action); text-decoration-line: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+a:hover { color: var(--color-action-hover); text-decoration-thickness: 2px; }
 h1, h2, h3 { margin: 0; font-family: var(--font-display); font-weight: var(--weight-display); font-synthesis: none; letter-spacing: var(--tracking-display); line-height: 1.02; overflow-wrap: break-word; min-width: 0; text-wrap: balance; }
 h1 { max-width: 20ch; font-size: var(--text-display); }
 h2 { max-width: 30ch; font-size: var(--text-section); }
@@ -62,57 +87,74 @@ ul, ol { padding: 0; list-style: none; }
 svg { display: block; }
 [hidden] { display: none !important; }
 button, input, select, textarea { font: inherit; color: inherit; }
-table { border-collapse: collapse; width: 100%; }
+/* Cells keep their own bottom line, so a table can carry a radius and a tinted head. */
+table { border-collapse: separate; border-spacing: 0; width: 100%; }
 th { text-align: left; font-weight: 500; }
 .container { width: 100%; max-width: var(--container); margin-inline: auto; padding-inline: var(--gutter); }
 .num { font-variant-numeric: lining-nums tabular-nums; }
-.muted { color: var(--color-muted); }
+.muted { color: var(--color-text-muted); }
 .small { font-size: var(--text-sm); }
-.lead { font-size: var(--text-lead); line-height: 1.45; max-width: 52ch; }
+.lead { font-size: var(--text-lead); line-height: 1.45; max-width: 52ch; color: var(--color-text-secondary); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }
 
 /* Chrome */
-.dev-banner { position: sticky; top: 0; z-index: var(--z-sticky-nav); margin: 0; max-width: none; padding: var(--space-xs) var(--gutter); background: var(--color-alarm); color: var(--color-alarm-ink); font-weight: 500; text-align: center; }
-.skip { position: absolute; left: var(--space-md); top: calc(-1 * var(--space-3xl)); z-index: var(--z-toast); padding: var(--space-xs) var(--space-md); background: var(--color-ink); color: var(--color-paper); }
-.skip:focus-visible { top: var(--space-md); }
-.site-head { border-bottom: 1px solid var(--color-guide); }
+.dev-banner { position: sticky; top: 0; z-index: var(--z-sticky-nav); margin: 0; max-width: none; padding: var(--space-xs) var(--gutter); background: var(--color-danger); color: var(--color-on-danger); font-weight: 500; text-align: center; }
+.skip { position: absolute; left: var(--space-md); top: calc(-1 * var(--space-3xl)); z-index: var(--z-toast); padding: var(--space-xs) var(--space-md); border-radius: var(--radius-control); background: var(--color-action); color: var(--color-on-action); }
+.skip:focus-visible { top: var(--space-md); color: var(--color-on-action); }
+.site-head { border-bottom: 1px solid var(--color-border); background: var(--color-bg); }
 .site-head > .container { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 var(--space-lg); min-height: var(--space-2xl); }
+.wordmark, .wordmark:hover { color: var(--color-text); }
 .wordmark { display: inline-flex; align-items: center; min-height: var(--control); font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-xl); letter-spacing: var(--tracking-display); line-height: 1; text-decoration: none; white-space: nowrap; }
-.site-nav { display: flex; gap: var(--space-lg); font-size: var(--text-sm); }
-.site-nav a { display: inline-flex; align-items: center; min-height: var(--control); white-space: nowrap; }
-.site-nav a[aria-current="page"] { text-decoration-thickness: 2px; }
-.site-foot { border-top: 1px solid var(--color-rule); padding-block: var(--space-xl); font-size: var(--text-sm); color: var(--color-muted); }
+.site-nav { display: flex; gap: var(--space-lg); font-size: var(--text-sm); font-weight: 500; }
+.site-nav a { display: inline-flex; align-items: center; min-height: var(--control); text-decoration-line: none; white-space: nowrap; }
+.site-nav a:hover, .site-nav a[aria-current="page"] { text-decoration-line: underline; text-decoration-thickness: 2px; text-underline-offset: 0.4em; }
+/* The one dark band on every page. */
+.site-foot { padding-block: var(--space-xl); background: var(--color-inverse); color: var(--color-on-inverse-muted); font-size: var(--text-sm); }
+.site-foot a, .site-foot a:hover { color: var(--color-action-on-inverse); }
 
 /* Controls */
-.btn { display: inline-flex; align-items: center; justify-content: center; min-height: var(--control); padding: var(--space-xs) var(--space-lg); border: 1px solid var(--color-ink); border-radius: 0; background: var(--color-ink); color: var(--color-paper); font-size: var(--text-md); font-weight: 500; line-height: 1.2; text-align: center; text-decoration: none; cursor: pointer; transition: background-color var(--dur-short) var(--ease-out), transform var(--dur-micro) var(--ease-out); }
-.btn:hover { background: var(--color-ink-2); }
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: var(--control); padding: var(--space-xs) var(--space-lg); border: 1px solid var(--color-action); border-radius: var(--radius-control); background: var(--color-action); color: var(--color-on-action); font-size: var(--text-md); font-weight: 500; line-height: 1.2; text-align: center; text-decoration: none; cursor: pointer; transition: background-color var(--dur-short) var(--ease-out), border-color var(--dur-short) var(--ease-out), transform var(--dur-micro) var(--ease-out); }
+.btn:hover { border-color: var(--color-action-hover); background: var(--color-action-hover); color: var(--color-on-action); }
 .btn:active { transform: translateY(1px); }
-.btn--quiet { background: transparent; color: var(--color-ink); }
-.btn--quiet:hover { background: var(--color-paper-2); }
+/* The second action on a view: white, outlined, ink label. */
+.btn--quiet { border-color: var(--color-border-strong); background: var(--color-surface); color: var(--color-text); }
+.btn--quiet:hover { border-color: var(--color-border-control); background: var(--color-bg-subtle); color: var(--color-text); }
 .btn--wide { width: 100%; }
-.btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+.btn:disabled { border-color: var(--color-border); background: var(--color-bg-neutral); color: var(--color-text-muted); cursor: not-allowed; transform: none; }
 .btn[aria-busy="true"] { cursor: progress; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm); }
 
 .field { display: grid; gap: var(--space-2xs); align-content: start; }
 .field > span:first-child { font-size: var(--text-sm); font-weight: 500; }
-.help { font-size: var(--text-sm); color: var(--color-muted); }
-input, textarea { width: 100%; min-height: var(--control); padding: var(--space-xs) var(--space-sm); border: 1px solid var(--color-muted); border-radius: 0; background: var(--color-paper); font-size: var(--text-md); }
+.help { font-size: var(--text-sm); color: var(--color-text-muted); }
+input, textarea { width: 100%; min-height: var(--control); padding: var(--space-xs) var(--space-sm); border: 1px solid var(--color-border-control); border-radius: var(--radius-control); background: var(--color-surface); font-size: var(--text-md); transition: border-color var(--dur-micro) var(--ease-out); }
 textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
-::placeholder { color: var(--color-muted); opacity: 1; }
-:is(input, textarea):focus-visible { outline-offset: -1px; }
-:is(input, textarea):disabled { opacity: 0.55; cursor: not-allowed; }
+::placeholder { color: var(--color-text-muted); opacity: 1; }
+:is(input, textarea):hover { border-color: var(--color-text-muted); }
+:is(input, textarea):focus-visible { border-color: var(--color-action); outline-offset: 0; }
+:is(input, textarea):disabled { border-color: var(--color-border); background: var(--color-bg-neutral); color: var(--color-text-muted); cursor: not-allowed; }
 
-.id { display: inline-flex; align-items: center; min-height: 1.5rem; padding: 0; border: 0; border-bottom: 1px dotted var(--color-rule-2); background: none; font-family: var(--font-mono); font-size: var(--text-xs); line-height: 1.2; overflow-wrap: anywhere; text-align: left; cursor: copy; }
-.id:hover { border-bottom-color: var(--color-ink); }
+.id { display: inline-flex; align-items: center; min-height: 1.5rem; padding: 0; border: 0; border-bottom: 1px dotted var(--color-border-control); border-radius: 0; background: none; font-family: var(--font-mono); font-size: var(--text-xs); line-height: 1.2; overflow-wrap: anywhere; text-align: left; cursor: copy; }
+.id:hover { border-bottom-color: var(--color-action); color: var(--color-action); }
 .mono { font-family: var(--font-mono); font-size: 0.92em; }
 
-.error { color: var(--color-error); }
-.progress { height: 1px; background: var(--color-rule); overflow: hidden; }
-.progress::after { content: ""; display: block; width: 30%; height: 100%; background: var(--color-ink); animation: progress-slide 1.4s var(--ease-in-out) infinite; }
+/* A state, said in a word and carried by a tint as well as the word. */
+.pill { display: inline-flex; align-items: center; padding: var(--space-3xs) var(--space-sm); border-radius: var(--radius-pill); background: var(--color-bg-neutral); color: var(--color-text-secondary); font-size: var(--text-xs); font-weight: 500; line-height: 1.5; white-space: nowrap; }
+.pill--success { background: var(--color-success-subtle); color: var(--color-success); }
+.pill--held { background: var(--color-action-subtle); color: var(--color-action-hover); }
+
+.error { padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-control); background: var(--color-danger-subtle); color: var(--color-danger); }
+.progress { height: 2px; border-radius: var(--radius-pill); background: var(--color-border); overflow: hidden; }
+.progress::after { content: ""; display: block; width: 30%; height: 100%; border-radius: var(--radius-pill); background: var(--color-action); animation: progress-slide 1.4s var(--ease-in-out) infinite; }
 @keyframes progress-slide { from { transform: translateX(-100%); } to { transform: translateX(434%); } }
 @media (prefers-reduced-motion: reduce) { .progress::after { width: 100%; animation: none; } }
+
+/* Surfaces. Raised: the objects a person acts on or keeps. Inset: a block that sits inside the page or inside a raised one. */
+.proposal, .card, .share, .statement, .till { border: 1px solid var(--color-border); border-radius: var(--radius-surface); background: var(--color-surface); box-shadow: var(--shadow-raised); }
+.well, .ticket, .steps li { border-radius: var(--radius-surface); background: var(--color-bg-subtle); }
+/* The warm mark: a short rule over the thing that is food or care. It is the only place the orange is a fill. */
+.dish::before, .card--letter::before { content: ""; width: 2rem; height: 3px; border-radius: var(--radius-pill); background: var(--color-warm); }
 
 /* Landing */
 .hero { padding-block: var(--space-2xl) var(--section-gap-s); }
@@ -121,10 +163,10 @@ textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
 .hero h1 { font-variation-settings: "opsz" 96; }
 /* The signature: one question, as it is asked in each city. Every line is the same size, since none comes first. */
 .greetings { display: grid; gap: var(--space-md); }
-.greetings figcaption { max-width: 34ch; font-size: var(--text-lead); line-height: 1.4; }
-.greetings li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: var(--space-2xs) var(--space-md); padding-block: var(--space-sm); border-top: 1px solid var(--color-rule); }
-.greetings li:first-child { border-top-color: var(--color-ink); }
-.greetings li:last-child { border-bottom: 1px solid var(--color-rule); }
+.greetings figcaption { max-width: 34ch; font-size: var(--text-lead); line-height: 1.4; color: var(--color-text-secondary); }
+.greetings li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: var(--space-2xs) var(--space-md); padding-block: var(--space-sm); border-top: 1px solid var(--color-border); }
+.greetings li:first-child { border-top: 2px solid var(--color-warm); }
+.greetings li:last-child { border-bottom: 1px solid var(--color-border); }
 .greetings__say { font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-greeting); font-variation-settings: "opsz" 96; letter-spacing: var(--tracking-display); line-height: 1.12; overflow-wrap: break-word; min-width: 0; }
 .greetings__say:lang(ko) { letter-spacing: 0; }
 .greetings li > .small { text-align: right; }
@@ -132,26 +174,30 @@ textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
 .section { padding-bottom: var(--section-gap); }
 .band + .section { padding-top: var(--section-gap-s); }
 .head-split { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--space-md) var(--gap-columns); align-items: last baseline; margin-bottom: var(--space-2xl); }
+.head-split p { color: var(--color-text-secondary); }
 
 .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--gap-columns); counter-reset: step; }
-.steps li { counter-increment: step; display: grid; gap: var(--space-sm); align-content: start; padding-top: var(--space-md); border-top: 1px solid var(--color-ink); }
-.steps li::before { content: counter(step); font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-display-s); font-variation-settings: "opsz" 24; line-height: 1; }
-.steps p { color: var(--color-ink-2); }
+.steps li { counter-increment: step; display: grid; gap: var(--space-sm); align-content: start; padding: var(--space-lg); }
+.steps li::before { content: counter(step); color: var(--color-warm); font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-display-s); font-variation-settings: "opsz" 24; line-height: 1; }
+.steps p { color: var(--color-text-secondary); }
 
-/* The one table under the double rule: what a gift card does, beside what happens here. */
-.versus { border-top: 3px double var(--color-rule-2); }
-.versus th, .versus td { padding: var(--space-md) var(--space-lg) var(--space-md) 0; border-bottom: 1px solid var(--color-rule); vertical-align: top; }
-.versus thead th { font-size: var(--text-sm); color: var(--color-muted); }
+/* What a gift card does, beside what happens here: one bordered table with a tinted head. */
+.versus { border: 1px solid var(--color-border); border-radius: var(--radius-surface); background: var(--color-surface); }
+.versus th, .versus td { padding: var(--space-md) var(--space-lg); border-bottom: 1px solid var(--color-border); vertical-align: top; }
+.versus tbody tr:last-child > * { border-bottom: 0; }
+.versus thead > tr > * { background: var(--color-bg-subtle); font-size: var(--text-sm); color: var(--color-text-muted); }
+.versus thead > tr > :first-child { border-top-left-radius: calc(var(--radius-surface) - 1px); }
+.versus thead > tr > :last-child { border-top-right-radius: calc(var(--radius-surface) - 1px); color: var(--color-text); }
 .versus tbody th { width: 26%; }
-.versus td:nth-child(2) { width: 30%; color: var(--color-muted); }
+.versus td:nth-child(2) { width: 30%; color: var(--color-text-muted); }
 .versus tbody td:last-child { font-size: var(--text-lead); line-height: 1.4; }
 
-.band { padding-block: var(--section-gap-s); background: var(--color-paper-2); }
-.city { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 9fr); gap: var(--space-md) var(--gap-columns); padding-block: var(--space-lg) var(--space-xl); border-top: 1px solid var(--color-ink); }
+.band { padding-block: var(--section-gap-s); background: var(--color-bg-subtle); }
+.city { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 9fr); gap: var(--space-md) var(--gap-columns); padding-block: var(--space-lg) var(--space-xl); border-top: 1px solid var(--color-border-strong); }
 .city h3 { font-size: var(--text-3xl); line-height: 1.08; }
-.shops > li { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 5fr); gap: var(--space-sm) var(--gap-columns); align-items: start; padding-block: var(--space-md); border-top: 1px solid var(--color-rule); }
-.shops > li:first-child { padding-top: 0; border-top: 0; }
-.shops > li:last-child { padding-bottom: 0; }
+/* On the tinted band each shop is a white card; the band is not a surface they nest in, it is the page there. */
+.shops { display: grid; gap: var(--space-md); }
+.shops > li { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 5fr); gap: var(--space-sm) var(--gap-columns); align-items: start; padding: var(--space-lg); border: 1px solid var(--color-border); border-radius: var(--radius-surface); background: var(--color-surface); }
 .shops__name { display: grid; gap: var(--space-2xs); align-content: start; }
 .shops__local { font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-title); letter-spacing: var(--tracking-display); line-height: 1.2; }
 .shops__local:lang(ko) { letter-spacing: 0; }
@@ -161,19 +207,22 @@ textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
 .menu th { font-weight: 400; }
 .menu th span { display: inline-block; margin-right: var(--space-xs); }
 .menu td { width: 1%; padding-left: var(--space-md); text-align: right; white-space: nowrap; }
-.menu td:nth-child(2) { color: var(--color-muted); }
-.menu--full { border-top: 3px double var(--color-rule-2); }
-.menu--full th, .menu--full td { padding-block: var(--space-sm); border-bottom: 1px solid var(--color-rule); }
-.menu--full thead th { font-size: var(--text-sm); font-weight: 500; color: var(--color-muted); }
+.menu td:nth-child(2) { color: var(--color-text-muted); }
+.menu--full th, .menu--full td { padding-block: var(--space-sm); border-bottom: 1px solid var(--color-border); }
+.menu--full th:first-child { padding-left: var(--space-sm); }
+.menu--full :is(th, td):last-child { padding-right: var(--space-sm); }
+.menu--full tbody tr:hover > * { background: var(--color-bg-subtle); }
+.menu--full thead th { border-bottom-color: var(--color-border-strong); font-size: var(--text-sm); font-weight: 500; color: var(--color-text-muted); }
 /* At the counter the shop's own price leads and the dollar figure is the note. */
 .menu--full td:nth-child(2) { color: inherit; }
-.menu--full td:nth-child(3) { color: var(--color-muted); }
+.menu--full td:nth-child(3) { color: var(--color-text-muted); }
 .menu--full thead th:not(:first-child) { width: 1%; padding-left: var(--space-md); text-align: right; white-space: nowrap; }
 
 .duo { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: var(--space-2xl) var(--gap-columns); align-items: start; }
 .duo h2 { font-size: var(--text-3xl); line-height: 1.08; }
-.tools li { padding-block: var(--space-xs); border-top: 1px solid var(--color-rule); }
-.tools li:last-child { border-bottom: 1px solid var(--color-rule); }
+.duo p { color: var(--color-text-secondary); }
+.tools { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.tools li { padding: var(--space-2xs) var(--space-sm); border: 1px solid var(--color-border); border-radius: var(--radius-inset); background: var(--color-bg-subtle); }
 .source { padding-bottom: var(--space-2xl); }
 .source p { max-width: 72ch; }
 
@@ -183,26 +232,28 @@ textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
 .page h1 { max-width: 28ch; font-size: var(--text-3xl); line-height: 1.08; }
 .page h2 { font-size: var(--text-xl); line-height: 1.15; }
 .page-head { display: grid; gap: var(--space-sm); }
+.page-head > p:not([class]) { color: var(--color-text-secondary); }
 .stack { display: grid; gap: var(--space-lg); align-content: start; }
 .stack--tight { display: grid; gap: var(--space-xs); align-content: start; }
 .stack > *, .stack--tight > * { min-width: 0; }
-.well { padding: var(--space-lg); background: var(--color-paper-2); }
+.well { padding: var(--space-lg); }
 .facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-2xs) var(--space-lg); }
-.facts dt { color: var(--color-muted); }
-.lines > div { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: var(--space-md); padding-block: var(--space-xs); border-top: 1px solid var(--color-rule); }
-.lines > div:last-child { border-bottom: 1px solid var(--color-rule); }
-.lines dt { color: var(--color-muted); }
+.facts dt { color: var(--color-text-muted); }
+.lines > div { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: var(--space-md); padding-block: var(--space-xs); border-top: 1px solid var(--color-border); }
+.lines > div:last-child { border-bottom: 1px solid var(--color-border); }
+.lines dt { color: var(--color-text-muted); }
 .lines dd { overflow-wrap: anywhere; }
-.verified { font-weight: 500; }
 
 /* A conversation with an agent. Who spoke sits above what was said, so a long name in any language fits. */
 .talk { display: grid; gap: var(--space-md); }
-.talk__log { max-height: 26rem; overflow-y: auto; border-block: 1px solid var(--color-rule); }
-.chat li { display: grid; gap: var(--space-3xs); padding-block: var(--space-sm); border-top: 1px solid var(--color-paper-3); }
-.chat li:first-child { border-top: 0; }
-.chat span { font-size: var(--text-sm); font-weight: 500; color: var(--color-muted); }
+.talk__log { max-height: 26rem; overflow-y: auto; padding: var(--space-sm); border: 1px solid var(--color-border); border-radius: var(--radius-surface); background: var(--color-surface); }
+.chat { display: grid; gap: var(--space-xs); }
+.chat li { display: grid; gap: var(--space-3xs); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-control); background: var(--color-bg-subtle); }
+/* The agent's lines carry the action tint, so the two voices can be told apart without reading the names. */
+.chat .is-agent { background: var(--color-action-subtle); }
+.chat span { font-size: var(--text-sm); font-weight: 500; color: var(--color-text-muted); }
 .chat p { overflow-wrap: anywhere; white-space: pre-line; }
-.chat .is-pending p { color: var(--color-muted); }
+.chat .is-pending p { color: var(--color-text-muted); }
 .talk__form { display: grid; gap: var(--space-sm); justify-items: start; }
 .talk__form .field { width: 100%; }
 
@@ -210,27 +261,31 @@ textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
 .send > * { max-width: var(--measure); }
 .send__name { max-width: 24rem; }
 .examples, .examples ul { display: grid; gap: var(--space-xs); }
-.example { width: 100%; min-height: var(--control); padding: var(--space-sm) var(--space-md); border: 1px solid var(--color-rule-2); border-radius: 0; background: transparent; line-height: 1.4; text-align: left; cursor: pointer; transition: background-color var(--dur-short) var(--ease-out), border-color var(--dur-short) var(--ease-out); }
-.example:hover { border-color: var(--color-ink); background: var(--color-paper-2); }
-.example:active { background: var(--color-paper-3); }
+.example { width: 100%; min-height: var(--control); padding: var(--space-sm) var(--space-md); border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); background: var(--color-surface); line-height: 1.4; text-align: left; cursor: pointer; transition: background-color var(--dur-short) var(--ease-out), border-color var(--dur-short) var(--ease-out); }
+.example:hover { border-color: var(--color-action); background: var(--color-action-subtle); }
+.example:active { border-color: var(--color-action-hover); }
 .send__jump { display: none; }
-.proposal { display: grid; gap: var(--space-lg); align-content: start; padding-top: var(--space-lg); border-top: 3px double var(--color-rule-2); }
+.proposal { display: grid; gap: var(--space-lg); align-content: start; padding: var(--space-lg); }
 .proposal > * { min-width: 0; }
 .dish { display: grid; gap: var(--space-2xs); }
+.dish::before { margin-bottom: var(--space-xs); }
 .dish__local { font-family: var(--font-display); font-weight: var(--weight-display); font-size: var(--text-3xl); letter-spacing: var(--tracking-display); line-height: 1.12; overflow-wrap: break-word; }
 .dish__local:lang(ko) { letter-spacing: 0; line-height: 1.25; }
 .dish__name { font-size: var(--text-lead); line-height: 1.4; }
-/* The card: the one object on these pages with a full border. Inside it, the words as the recipient will read them. */
-.card { display: grid; gap: var(--space-md); padding: var(--space-lg); border: 1px solid var(--color-ink); }
+/* The card: the words as the recipient will read them. */
+.card { display: grid; gap: var(--space-md); padding: var(--space-lg); }
+/* Inside the proposal the card is an inset block, so one raised surface does not sit in another. */
+.proposal .card { border: 0; border-radius: var(--radius-control); background: var(--color-bg-subtle); box-shadow: none; }
 .card blockquote { font-family: var(--font-display); font-weight: 500; font-size: var(--text-xl); line-height: 1.35; overflow-wrap: anywhere; white-space: pre-line; }
 .card blockquote:lang(ko) { line-height: 1.5; word-break: keep-all; }
-.card figcaption { display: grid; gap: var(--space-3xs); padding-top: var(--space-sm); border-top: 1px solid var(--color-rule); }
+.card figcaption { display: grid; gap: var(--space-3xs); padding-top: var(--space-sm); border-top: 1px solid var(--color-border); }
+.proposal .card figcaption { border-top-color: var(--color-border-strong); }
 .card--letter { gap: var(--space-lg); padding: var(--space-xl); }
 .card--letter blockquote { font-size: var(--text-2xl); }
 .card--letter figcaption { justify-items: end; font-family: var(--font-display); font-weight: 500; font-size: var(--text-xl); line-height: 1.2; }
 .card-says { display: block; }
 .sum > div { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--space-lg); padding-block: var(--space-2xs); }
-.sum > div:last-child { margin-top: var(--space-xs); padding-top: var(--space-sm); border-top: 1px solid var(--color-rule-2); }
+.sum > div:last-child { margin-top: var(--space-xs); padding-top: var(--space-sm); border-top: 1px solid var(--color-border-strong); }
 .sum > div:last-child dt { font-weight: 500; }
 /* Amounts are figures to read at a glance, so they are set in the body face with lining numerals, not in the display face. */
 .sum > div:last-child dd { font-size: var(--text-2xl); font-weight: 500; line-height: 1.1; }
@@ -247,69 +302,77 @@ textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
   .treat { grid-template-columns: minmax(0, 46rem) minmax(0, 1fr); column-gap: var(--space-2xl); align-items: start; }
   .treat__side .log { max-height: 34rem; }
 }
-.share { display: grid; gap: var(--space-lg); padding: var(--space-lg); border: 1px solid var(--color-ink); }
+.share { display: grid; gap: var(--space-lg); padding: var(--space-lg); }
 .share__link { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-sm) var(--space-md); }
 .share__link a { min-width: 0; font-size: var(--text-md); overflow-wrap: anywhere; }
 /* Anything that exists only so one person can play every part in the demo sits in a dashed box and says so. */
-.demo { display: grid; gap: var(--space-sm); padding: var(--space-md) var(--space-lg); border: 1px dashed var(--color-rule-2); background: var(--color-paper-2); }
+.demo { display: grid; gap: var(--space-sm); padding: var(--space-md) var(--space-lg); border: 1px dashed var(--color-border-control); border-radius: var(--radius-surface); background: var(--color-bg-subtle); }
 .page .demo h2 { font-family: var(--font-body); font-size: var(--text-md); font-weight: 500; letter-spacing: 0; line-height: 1.4; }
 
-.log { container-type: inline-size; max-height: 19rem; overflow-y: auto; border-block: 1px solid var(--color-rule); font-size: var(--text-sm); }
-.progress + .log { margin-top: calc(-1 * var(--space-xs)); border-top: 0; }
-.log li { display: grid; grid-template-columns: 4.75rem 7rem minmax(0, 1fr); gap: var(--space-md); padding-block: var(--space-xs); border-top: 1px solid var(--color-paper-3); }
+/* The activity log: one bordered list. The radius and the line are on the same box, and the box clips its rows. */
+.log { container-type: inline-size; max-height: 19rem; overflow-y: auto; border: 1px solid var(--color-border); border-radius: var(--radius-surface); background: var(--color-surface); font-size: var(--text-sm); }
+.log li { display: grid; grid-template-columns: 4.75rem 7rem minmax(0, 1fr); gap: var(--space-md); padding: var(--space-xs) var(--space-md); border-top: 1px solid var(--color-border); }
 .log li:first-child { border-top: 0; }
-.log time { color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.log li:hover { background: var(--color-bg-subtle); }
+.log time { color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
 .log__actor { font-weight: 500; }
-.log .is-blocked .log__text { color: var(--color-error); }
+.log .is-blocked .log__text { color: var(--color-danger); }
 /* In a narrow column the sentence goes under the time and the name instead of beside them. */
 @container (max-width: 36rem) {
   .log li { grid-template-columns: 4.75rem minmax(0, 1fr); gap: 0 var(--space-sm); }
   .log__text { grid-column: 1 / -1; }
 }
 
-.statement { display: grid; gap: var(--space-lg); max-width: var(--measure); padding: var(--space-xl); border: 1px solid var(--color-rule-2); }
-.statement__mark { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-2xs) var(--space-md); padding-bottom: var(--space-md); border-bottom: 3px double var(--color-rule-2); }
+.statement { display: grid; gap: var(--space-lg); max-width: var(--measure); padding: var(--space-xl); }
+.statement__mark { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-xs) var(--space-md); padding-bottom: var(--space-md); border-bottom: 1px solid var(--color-border); }
+/* Where the rows follow the heading line directly, the first row does not draw a second line under it. */
+.statement > h2 + .lines > div:first-child { border-top: 0; }
 .statement__mark b { font-family: var(--font-display); font-size: var(--text-xl); font-weight: var(--weight-display); letter-spacing: var(--tracking-display); line-height: 1; }
-.statement__total { font-size: var(--text-3xl); font-weight: 500; line-height: 1.1; }
+/* What PayPal paid the shop: the one figure on the counter that is good news, so it carries the success colour. */
+.statement__total { color: var(--color-success); font-size: var(--text-3xl); font-weight: 500; line-height: 1.1; }
 
 .refs { display: grid; gap: var(--space-3xs); font-size: var(--text-sm); }
 .refs > div { display: grid; grid-template-columns: 3.75rem minmax(0, 1fr); align-items: baseline; gap: var(--space-xs); }
 .refs--wide > div { grid-template-columns: 9rem minmax(0, 1fr); padding-block: var(--space-2xs); }
 .refs dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-xs); }
-.refs dt { color: var(--color-muted); }
+.refs dt { color: var(--color-text-muted); }
 
 /* The recipient's page: one narrow column, like a card held in the hand. No amount is ever set on it. */
 .gift { max-width: calc(42rem + 2 * var(--gutter)); }
 .gift h1 { max-width: none; font-size: var(--text-display-s); font-variation-settings: "opsz" 96; line-height: 1.05; }
 .gift h1:lang(ko) { line-height: 1.25; }
 .gift__where { display: block; }
-.ticket { display: grid; gap: var(--space-sm); justify-items: center; padding: var(--space-xl) var(--space-lg); border-block: 3px double var(--color-rule-2); text-align: center; }
+/* Here the card already carries the warm mark, so the dish under it does not repeat it. */
+.gift .dish::before { content: none; }
+/* The ticket: the code on a tinted block, underlined in the warm colour. */
+.ticket { display: grid; gap: var(--space-sm); justify-items: center; padding: var(--space-xl) var(--space-lg); border: 1px solid var(--color-border); text-align: center; }
 .page .ticket h2 { font-family: var(--font-body); font-size: var(--text-body); font-weight: 500; letter-spacing: 0; line-height: 1.4; }
-.ticket__code { max-width: 100%; font-family: var(--font-mono); font-size: var(--text-code); line-height: 1.1; overflow-wrap: anywhere; }
+.ticket__code { max-width: 100%; padding-bottom: var(--space-2xs); border-bottom: 3px solid var(--color-warm); font-family: var(--font-mono); font-size: var(--text-code); line-height: 1.1; overflow-wrap: anywhere; }
 .ticket .progress { width: 100%; }
 
 /* The counter */
 .counter > * { max-width: var(--measure); }
 .counter > .counter__served { max-width: none; }
-.till { display: grid; gap: var(--space-lg); padding: var(--space-lg); border: 1px solid var(--color-ink); }
+.till { display: grid; gap: var(--space-lg); padding: var(--space-lg); }
 .till__form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-md); align-items: end; }
 .till__code { min-height: 3.5rem; font-family: var(--font-mono); font-size: var(--text-xl); }
 .till__form .btn { min-height: 3.5rem; }
-.till .statement { max-width: none; padding: var(--space-lg) 0 0; border: 0; border-top: 1px solid var(--color-rule-2); }
-.plain th, .plain td { padding: var(--space-xs) var(--space-md) var(--space-xs) 0; border-bottom: 1px solid var(--color-rule); vertical-align: baseline; white-space: nowrap; }
-.plain thead th { border-bottom-color: var(--color-rule-2); font-size: var(--text-sm); color: var(--color-muted); }
+/* The result sits inside the till, under a line: it is part of that surface, not a second one. */
+.till .statement { max-width: none; padding: var(--space-lg) 0 0; border: 0; border-top: 1px solid var(--color-border); border-radius: 0; background: none; box-shadow: none; }
+.plain th, .plain td { padding: var(--space-sm) var(--space-md) var(--space-sm) 0; border-bottom: 1px solid var(--color-border); vertical-align: middle; white-space: nowrap; }
+.plain th:first-child, .plain td:first-child { padding-left: var(--space-sm); }
+.plain thead th { border-bottom-color: var(--color-border-strong); font-size: var(--text-sm); color: var(--color-text-muted); }
+.plain tbody tr:hover > * { background: var(--color-bg-subtle); }
 .scroll-x { overflow-x: auto; }
 
 /* The ledger */
-.stats { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
-.stats > div { display: flex; flex-direction: column-reverse; gap: var(--space-2xs); padding-inline: var(--space-lg); border-left: 1px solid var(--color-rule); }
-.stats > div:first-child { padding-left: 0; border-left: 0; }
-.stats dt { font-size: var(--text-sm); color: var(--color-muted); }
+.stats { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); padding-block: var(--space-md); border: 1px solid var(--color-border); border-radius: var(--radius-surface); background: var(--color-surface); }
+.stats > div { display: flex; flex-direction: column-reverse; gap: var(--space-2xs); padding-inline: var(--space-lg); border-left: 1px solid var(--color-border); }
+.stats > div:first-child { border-left: 0; }
+.stats dt { font-size: var(--text-sm); color: var(--color-text-muted); }
 .stats dd { font-size: var(--text-2xl); font-weight: 500; font-variant-numeric: lining-nums tabular-nums; line-height: 1.1; }
-.grid--lead { border-top: 3px double var(--color-rule-2); }
-.state { font-weight: 500; }
 
-/* AG Grid: the theme object in components/grid.ts carries the colours and faces; these are the parts it has no parameter for. */
+/* AG Grid: the theme object in components/grid.ts carries the colours, faces and radius; these are the parts it has no parameter for. */
 .ag-root-wrapper { font-variant-numeric: lining-nums tabular-nums; }
 .ag-cell { display: flex; align-items: center; }
 .ag-cell-wrapper { width: 100%; }
@@ -318,16 +381,15 @@ textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
 .ledger .ag-cell { align-items: flex-start; padding-block: var(--space-sm); line-height: 1.45; }
 .ledger .ag-cell-wrapper { align-items: flex-start; }
 .ledger .ag-cell-value { overflow: visible; }
-.ledger .is-released { background: var(--color-paper-2); }
 
 /* Narrow screens */
 @media (max-width: 60rem) {
   .hero__grid, .head-split, .duo, .city { grid-template-columns: minmax(0, 1fr); }
   .hero { padding-top: var(--space-xl); }
   .head-split { margin-bottom: var(--space-xl); }
-  .steps { grid-template-columns: minmax(0, 1fr); gap: var(--space-xl); }
+  .steps { grid-template-columns: minmax(0, 1fr); gap: var(--space-md); }
   .stats { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: var(--space-lg); }
-  .stats > div:nth-child(odd) { padding-left: 0; border-left: 0; }
+  .stats > div:nth-child(odd) { border-left: 0; }
   .send__jump { display: block; }
 }
 @media (max-width: 40rem) {
@@ -335,24 +397,27 @@ textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
   .site-nav { gap: var(--space-md); }
   .greetings li { grid-template-columns: minmax(0, 1fr); }
   .greetings li > .small { text-align: left; }
-  .shops > li { grid-template-columns: minmax(0, 1fr); }
+  .shops > li { grid-template-columns: minmax(0, 1fr); padding: var(--space-md); }
   /* The comparison stacks: what is compared, then each answer under its own name. */
   .versus, .versus tbody { display: block; }
   .versus thead { display: none; }
-  .versus tr { display: grid; gap: var(--space-xs); padding-block: var(--space-md); border-bottom: 1px solid var(--color-rule); }
-  .versus th, .versus td, .versus td:nth-child(2) { display: block; width: auto; padding: 0; border: 0; }
-  .versus td::before { content: attr(data-label); display: block; font-size: var(--text-sm); font-weight: 500; color: var(--color-muted); }
+  .versus tr { display: grid; gap: var(--space-xs); padding: var(--space-md); border-bottom: 1px solid var(--color-border); }
+  .versus tr:last-child { border-bottom: 0; }
+  .versus th, .versus tbody th, .versus td, .versus td:nth-child(2) { display: block; width: auto; padding: 0; border: 0; }
+  .versus td::before { content: attr(data-label); display: block; font-size: var(--text-sm); font-weight: 500; color: var(--color-text-muted); }
   .statement { padding: var(--space-lg) var(--space-md); }
   .lines > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .page { gap: var(--space-xl); padding-block: var(--space-xl) var(--space-2xl); }
   .page h1 { font-size: var(--text-2xl); }
   .gift h1 { font-size: var(--text-3xl); }
+  .proposal, .share { padding: var(--space-md); }
   .card--letter { padding: var(--space-lg); }
   .card--letter blockquote { font-size: var(--text-xl); }
-  .ticket { padding-inline: 0; }
+  .ticket { padding-inline: var(--space-md); }
   .till { padding: var(--space-md); }
   .till__form { grid-template-columns: minmax(0, 1fr); }
   .refs--wide > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .stats > div { padding-inline: var(--space-md); }
 }
 
 /* Print: the result, nothing else. The development banner stays on paper. */
@@ -361,8 +426,8 @@ textarea { min-height: 5.5rem; line-height: 1.5; resize: vertical; }
   body { display: block; font-size: 11pt; }
   .page { display: block; padding: 0; }
   .page > * { margin-bottom: var(--space-lg); }
-  .dev-banner { position: static; border: 2px solid var(--color-alarm); background: none; color: var(--color-alarm); }
-  .statement { max-width: none; padding: 0; border: 0; }
+  .dev-banner { position: static; border: 2px solid var(--color-danger); background: none; color: var(--color-danger); }
+  .statement { max-width: none; padding: 0; border: 0; box-shadow: none; }
   .id { border: 0; }
   a { text-decoration: none; }
 }

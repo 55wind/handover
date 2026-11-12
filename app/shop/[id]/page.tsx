@@ -147,7 +147,7 @@ export default function ShopPage({ params, searchParams }: { params: Promise<{ i
             <div className="statement">
               <div className="statement__mark">
                 <b>Served</b>
-                <span className={served.verified ? 'verified' : 'muted'}>{served.verified ? 'Confirmed with PayPal' : 'Not confirmed with PayPal'}</span>
+                <span className={`pill${served.verified ? ' pill--success' : ''}`}>{served.verified ? 'Confirmed with PayPal' : 'Not confirmed with PayPal'}</span>
               </div>
               <p className="statement__total num">PayPal paid {usd(served.charged)}</p>
               <dl className="lines">
@@ -230,7 +230,9 @@ export default function ShopPage({ params, searchParams }: { params: Promise<{ i
                     <td>{stamp(row.ts)}</td>
                     <td>{row.item}</td>
                     <td>{usd(row.charged)}</td>
-                    <td>{row.verified ? 'Yes' : 'Not yet'}</td>
+                    <td>
+                      <span className={`pill${row.verified ? ' pill--success' : ''}`}>{row.verified ? 'Yes' : 'Not yet'}</span>
+                    </td>
                     <td>
                       {row.paypal.payoutId ? <CopyId value={row.paypal.payoutId} /> : <span className="muted">None yet</span>}
                       {row.paypal.payoutStatus && <span className="small muted"> {row.paypal.payoutStatus.toLowerCase()}</span>}

@@ -25,6 +25,13 @@ const STATUS: Record<TreatStatus, string> = {
   released: 'Released',
 };
 
+// Blue while PayPal holds the money, green once the meal is eaten, slate for everything else.
+const TONE: Partial<Record<TreatStatus, string>> = { held: ' pill--held', settling: ' pill--held', enjoyed: ' pill--success' };
+
+const StatusCell = ({ data: row }: { data?: LedgerRow }) => row && <span className={`pill${TONE[row.status] ?? ''}`}>{STATUS[row.status] ?? row.status}</span>;
+
+const ConfirmedCell = ({ data: row }: { data?: LedgerRow }) => row && <span className={`pill${row.verified ? ' pill--success' : ''}`}>{row.verified ? 'Yes' : 'Not yet'}</span>;
+
 const IdsCell = ({ data: row }: { data?: LedgerRow }) => {
   if (!row) return null;
   const ids: [string, string | undefined][] = [
@@ -56,7 +63,7 @@ const money = { width: 108, type: 'rightAligned', valueFormatter: (p: { value: u
 const COLUMNS: ColDef<LedgerRow>[] = [
   { headerName: 'Time', field: 'ts', width: 124, valueFormatter: (p) => stamp(p.value) },
   { headerName: 'Treat', field: 'ref', width: 112, cellClass: 'mono' },
-  { headerName: 'Status', field: 'status', width: 164, cellClass: 'state', valueFormatter: (p) => STATUS[p.value as TreatStatus] ?? p.value, ...wrap },
+  { headerName: 'Status', field: 'status', width: 196, cellRenderer: StatusCell },
   { headerName: 'City', field: 'city', width: 128 },
   { headerName: 'Shop', field: 'shopName', width: 188, ...wrap },
   { headerName: 'Dish', field: 'item', width: 196, ...wrap },
@@ -64,12 +71,12 @@ const COLUMNS: ColDef<LedgerRow>[] = [
   { headerName: 'Charged', field: 'charged', ...money },
   { headerName: 'Released', field: 'released', ...money },
   { headerName: 'Sent by', colId: 'sentBy', width: 144, valueGetter: (p) => (p.data?.viaAgent ? 'An AI assistant' : 'A person') },
-  { headerName: 'Confirmed with PayPal', colId: 'confirmed', width: 184, valueGetter: (p) => (p.data?.verified ? 'Yes' : 'Not yet') },
+  { headerName: 'Confirmed with PayPal', colId: 'confirmed', width: 184, valueGetter: (p) => (p.data?.verified ? 'Yes' : 'Not yet'), cellRenderer: ConfirmedCell },
   { headerName: 'PayPal ids', flex: 1, minWidth: 264, cellRenderer: IdsCell, ...wrap },
 ];
-// The ledger grows with its rows up to about eight of them, then scrolls inside itself. Rows are not links, so they
-// do not light up under the pointer; the only tinted rows are the released ones.
-const ledgerTheme = gridTheme.withParams({ autoHeightMaxBodyHeight: 640, rowHoverColor: 'transparent' });
+// The ledger grows with its rows up to about eight of them, then scrolls inside itself. A row's state is in its
+// pill, so no row is tinted except the one under the pointer.
+const ledgerTheme = gridTheme.withParams({ autoHeightMaxBodyHeight: 640 });
 
 export default function LedgerPage() {
   const [ledger, setLedger] = useState<Ledger | null>(null);
@@ -140,14 +147,13 @@ export default function LedgerPage() {
           )}
         </div>
         {rows.length > 0 && (
-          <div className="grid--lead ledger">
+          <div className="ledger">
             <AgGridReact<LedgerRow>
               {...gridDefaults}
               theme={ledgerTheme}
               rowData={rows}
               columnDefs={COLUMNS}
               getRowId={(p) => p.data.ref}
-              rowClassRules={{ 'is-released': (p) => p.data?.status === 'released' }}
               domLayout="autoHeight"
             />
           </div>
